@@ -2,7 +2,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { Spotlight } from "@/components/ui/spotlight";
 
 export default function Landing() {
   const { user } = useAuth();
@@ -58,13 +57,8 @@ export default function Landing() {
         </div>
       </nav>
 
-      {/* Hero Section with Spotlight */}
+      {/* Hero Section */}
       <section className="min-h-screen flex items-center justify-center px-6 relative overflow-hidden">
-        {/* Spotlight Effect */}
-        <Spotlight
-          className="-top-40 left-0 md:left-60 md:-top-20"
-          fill="white"
-        />
         
         <div className="max-w-5xl mx-auto text-center relative z-10">
           <div className="space-y-12 animate-fade-in">

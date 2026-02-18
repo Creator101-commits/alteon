@@ -90,12 +90,6 @@ export const LazyMermaidRenderer = lazy(() =>
 );
 
 // ============================================
-// VIRTUALIZED LIST COMPONENTS
-// Note: VirtualizedLists exports named components, import directly
-// import { VirtualizedNotesList, VirtualizedAssignmentsList } from '@/components/VirtualizedLists'
-// ============================================
-
-// ============================================
 // DATE PICKER (heavy calendar component)
 // ============================================
 export const LazyDateTimePicker = lazy(() => 
