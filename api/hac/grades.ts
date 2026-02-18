@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import * as hacScraper from '../../lib/hac/scraper';
+import * as hacScraper from '../../lib/hac/scraper.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -8,8 +8,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const sessionId = req.headers['x-hac-session'] as string;
+    // Accept cycle as string value (matching availableCycles[].value) or legacy numeric index
     const cycleParam = req.query.cycle as string | undefined;
-    const cycleNumber = cycleParam ? parseInt(cycleParam, 10) : undefined;
     
     if (!sessionId) {
       return res.status(401).json({ 
@@ -24,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
     
-    const gradesData = await hacScraper.fetchGrades(sessionId, cycleNumber);
+    const gradesData = await hacScraper.fetchGrades(sessionId, cycleParam);
     
     if (!gradesData) {
       return res.status(500).json({ 

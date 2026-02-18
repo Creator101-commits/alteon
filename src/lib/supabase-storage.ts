@@ -6,12 +6,6 @@ import type {
   InsertClass,
   Assignment,
   InsertAssignment,
-  Flashcard,
-  InsertFlashcard,
-  FlashcardDeck,
-  InsertFlashcardDeck,
-  FlashcardReview,
-  InsertFlashcardReview,
   MoodEntry,
   InsertMoodEntry,
   JournalEntry,
@@ -24,6 +18,8 @@ import type {
   InsertHabit,
   Note,
   InsertNote,
+  Folder,
+  InsertFolder,
   Board,
   InsertBoard,
   TodoList,
@@ -40,6 +36,12 @@ import type {
   InsertUserStats,
   UserAchievement,
   InsertUserAchievement,
+  FlashcardDeck,
+  InsertFlashcardDeck,
+  Flashcard,
+  InsertFlashcard,
+  FlashcardStudyProgress,
+  InsertFlashcardStudyProgress,
 } from '@shared/schema';
 
 /**
@@ -47,6 +49,93 @@ import type {
  * Replaces OracleStorage with direct Supabase client calls
  * All methods enforce user-level authorization by filtering on user_id
  */
+
+// Helper to map snake_case DB response to camelCase Note type
+function mapDbToNote(row: any): Note {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    folderId: row.folder_id ?? null,
+    classId: row.class_id ?? null,
+    title: row.title,
+    content: row.content,
+    category: row.category,
+    tags: row.tags,
+    isPinned: row.is_pinned,
+    color: row.color,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// Helper to map snake_case DB response to camelCase Folder type
+function mapDbToFolder(row: any): Folder {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    parentFolderId: row.parent_folder_id ?? null,
+    color: row.color,
+    icon: row.icon,
+    sortOrder: row.sort_order,
+    isExpanded: row.is_expanded,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// Helper to map snake_case DB response to camelCase FlashcardDeck type
+function mapDbToFlashcardDeck(row: any): FlashcardDeck {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    folderId: row.folder_id ?? null,
+    title: row.title,
+    description: row.description ?? '',
+    tags: row.tags ?? [],
+    isPublic: row.is_public ?? false,
+    cardCount: row.card_count ?? 0,
+    lastStudied: row.last_studied,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// Helper to map snake_case DB response to camelCase Flashcard type
+function mapDbToFlashcard(row: any): Flashcard {
+  return {
+    id: row.id,
+    deckId: row.deck_id,
+    term: row.term ?? '',
+    definition: row.definition ?? '',
+    termImage: row.term_image ?? null,
+    definitionImage: row.definition_image ?? null,
+    termAudio: row.term_audio ?? null,
+    definitionAudio: row.definition_audio ?? null,
+    position: row.position ?? 0,
+    isStarred: row.is_starred ?? false,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+// Helper to map snake_case DB response to camelCase FlashcardStudyProgress type
+function mapDbToStudyProgress(row: any): FlashcardStudyProgress {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    cardId: row.card_id,
+    easeFactor: row.ease_factor ?? 2.5,
+    intervalDays: row.interval_days ?? 0,
+    repetitions: row.repetitions ?? 0,
+    nextReview: row.next_review,
+    lastReviewed: row.last_reviewed,
+    quality: row.quality ?? 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export class SupabaseStorage {
   // ========================================
   // USER METHODS
@@ -350,291 +439,98 @@ export class SupabaseStorage {
   }
 
   // ========================================
-  // FLASHCARD DECK METHODS
+  // FOLDER METHODS (unified file organization)
   // ========================================
 
-  async getDecksByUserId(userId: string): Promise<FlashcardDeck[]> {
+  async getFoldersByUserId(userId: string): Promise<Folder[]> {
     const { data, error } = await supabase
-      .from('flashcard_decks')
+      .from('folders')
       .select('*')
       .eq('user_id', userId)
       .order('sort_order', { ascending: true });
 
     if (error) {
-      console.error('Error fetching decks:', error);
+      console.error('Error fetching folders:', error);
       return [];
     }
 
-    return data as FlashcardDeck[];
+    return (data || []).map(mapDbToFolder);
   }
 
-  async createDeck(deck: InsertFlashcardDeck): Promise<FlashcardDeck> {
+  async getFolder(id: string): Promise<Folder | undefined> {
     const { data, error } = await supabase
-      .from('flashcard_decks')
+      .from('folders')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching folder:', error);
+      return undefined;
+    }
+
+    return mapDbToFolder(data);
+  }
+
+  async createFolder(folder: InsertFolder): Promise<Folder> {
+    const { data, error } = await supabase
+      .from('folders')
       .insert({
-        user_id: deck.userId,
-        name: deck.name,
-        description: deck.description || null,
-        parent_deck_id: deck.parentDeckId || null,
-        color: deck.color || '#3b82f6',
-        sort_order: deck.sortOrder || 0,
+        user_id: folder.userId,
+        name: folder.name,
+        parent_folder_id: folder.parentFolderId || null,
+        color: folder.color || '#3b82f6',
+        icon: folder.icon || null,
+        sort_order: folder.sortOrder || 0,
+        is_expanded: folder.isExpanded !== undefined ? folder.isExpanded : true,
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Error creating deck:', error);
-      throw new Error(`Failed to create deck: ${error.message}`);
+      console.error('Error creating folder:', error);
+      throw new Error(`Failed to create folder: ${error.message}`);
     }
 
-    return data as FlashcardDeck;
+    return mapDbToFolder(data);
   }
 
-  async updateDeck(id: string, deck: Partial<InsertFlashcardDeck>): Promise<FlashcardDeck | undefined> {
+  async updateFolder(id: string, folder: Partial<InsertFolder>): Promise<Folder | undefined> {
     const updates: any = {};
-    if (deck.name !== undefined) updates.name = deck.name;
-    if (deck.description !== undefined) updates.description = deck.description;
-    if (deck.parentDeckId !== undefined) updates.parent_deck_id = deck.parentDeckId;
-    if (deck.color !== undefined) updates.color = deck.color;
-    if (deck.sortOrder !== undefined) updates.sort_order = deck.sortOrder;
+    if (folder.name !== undefined) updates.name = folder.name;
+    if (folder.parentFolderId !== undefined) updates.parent_folder_id = folder.parentFolderId;
+    if (folder.color !== undefined) updates.color = folder.color;
+    if (folder.icon !== undefined) updates.icon = folder.icon;
+    if (folder.sortOrder !== undefined) updates.sort_order = folder.sortOrder;
+    if (folder.isExpanded !== undefined) updates.is_expanded = folder.isExpanded;
 
     const { data, error } = await supabase
-      .from('flashcard_decks')
+      .from('folders')
       .update(updates)
       .eq('id', id)
       .select()
       .single();
 
     if (error) {
-      console.error('Error updating deck:', error);
+      console.error('Error updating folder:', error);
       return undefined;
     }
 
-    return data as FlashcardDeck;
+    return mapDbToFolder(data);
   }
 
-  async deleteDeck(id: string): Promise<boolean> {
+  async deleteFolder(id: string): Promise<boolean> {
     const { error } = await supabase
-      .from('flashcard_decks')
+      .from('folders')
       .delete()
       .eq('id', id);
 
     if (error) {
-      console.error('Error deleting deck:', error);
+      console.error('Error deleting folder:', error);
       return false;
     }
 
     return true;
-  }
-
-  // Alias methods for compatibility
-  async getFlashcardDecksByUserId(userId: string): Promise<FlashcardDeck[]> {
-    return this.getDecksByUserId(userId);
-  }
-
-  async createFlashcardDeck(deck: InsertFlashcardDeck): Promise<FlashcardDeck> {
-    return this.createDeck(deck);
-  }
-
-  async updateFlashcardDeck(id: string, deck: Partial<InsertFlashcardDeck>): Promise<FlashcardDeck | undefined> {
-    return this.updateDeck(id, deck);
-  }
-
-  async deleteFlashcardDeck(id: string): Promise<boolean> {
-    return this.deleteDeck(id);
-  }
-
-  // ========================================
-  // FLASHCARD METHODS
-  // ========================================
-
-  async getFlashcardsByUserId(userId: string): Promise<Flashcard[]> {
-    const { data, error } = await supabase
-      .from('flashcards')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching flashcards:', error);
-      return [];
-    }
-
-    return data as Flashcard[];
-  }
-
-  async getFlashcardsByDeck(deckId: string): Promise<Flashcard[]> {
-    const { data, error } = await supabase
-      .from('flashcards')
-      .select('*')
-      .eq('deck_id', deckId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching flashcards by deck:', error);
-      return [];
-    }
-
-    return data as Flashcard[];
-  }
-
-  async createFlashcard(flashcard: InsertFlashcard): Promise<Flashcard> {
-    // Only include core columns that are guaranteed to exist
-    const insertData: any = {
-      user_id: flashcard.userId,
-      deck_id: flashcard.deckId || null,
-      class_id: flashcard.classId || null,
-      card_type: flashcard.cardType || 'basic',
-      front: flashcard.front,
-      back: flashcard.back,
-      difficulty: flashcard.difficulty || 'medium',
-      review_count: flashcard.reviewCount || 0,
-      correct_count: flashcard.correctCount || 0,
-      incorrect_count: flashcard.incorrectCount || 0,
-    };
-
-    // Only add optional columns if they have values (these might not exist in older schemas)
-    if (flashcard.clozeText) insertData.cloze_text = flashcard.clozeText;
-    if (flashcard.clozeIndex) insertData.cloze_index = flashcard.clozeIndex;
-    if (flashcard.lastReviewed) insertData.last_reviewed = flashcard.lastReviewed;
-    if (flashcard.easeFactor !== undefined) insertData.ease_factor = flashcard.easeFactor;
-    if (flashcard.interval !== undefined) insertData.interval = flashcard.interval;
-    if (flashcard.maturityLevel) insertData.maturity_level = flashcard.maturityLevel;
-
-    const { data, error } = await supabase
-      .from('flashcards')
-      .insert(insertData)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating flashcard:', error);
-      throw new Error(`Failed to create flashcard: ${error.message}`);
-    }
-
-    return data as Flashcard;
-  }
-
-  async updateFlashcard(id: string, flashcard: Partial<InsertFlashcard>): Promise<Flashcard | undefined> {
-    const updates: any = {};
-    if (flashcard.front !== undefined) updates.front = flashcard.front;
-    if (flashcard.back !== undefined) updates.back = flashcard.back;
-    if (flashcard.deckId !== undefined) updates.deck_id = flashcard.deckId;
-    if (flashcard.difficulty !== undefined) updates.difficulty = flashcard.difficulty;
-    if (flashcard.lastReviewed !== undefined) updates.last_reviewed = flashcard.lastReviewed;
-    if (flashcard.reviewCount !== undefined) updates.review_count = flashcard.reviewCount;
-    if (flashcard.correctCount !== undefined) updates.correct_count = flashcard.correctCount;
-    if (flashcard.incorrectCount !== undefined) updates.incorrect_count = flashcard.incorrectCount;
-    if (flashcard.easeFactor !== undefined) updates.ease_factor = flashcard.easeFactor;
-    if (flashcard.interval !== undefined) updates.interval = flashcard.interval;
-    if (flashcard.maturityLevel !== undefined) updates.maturity_level = flashcard.maturityLevel;
-
-    const { data, error } = await supabase
-      .from('flashcards')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating flashcard:', error);
-      return undefined;
-    }
-
-    return data as Flashcard;
-  }
-
-  async deleteFlashcard(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('flashcards')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting flashcard:', error);
-      return false;
-    }
-
-    return true;
-  }
-
-  // ========================================
-  // FLASHCARD REVIEW METHODS
-  // ========================================
-
-  async recordReview(review: InsertFlashcardReview): Promise<FlashcardReview> {
-    const { data, error } = await supabase
-      .from('flashcard_reviews')
-      .insert({
-        user_id: review.userId,
-        flashcard_id: review.flashcardId,
-        deck_id: review.deckId || null,
-        was_correct: review.wasCorrect,
-        time_spent: review.timeSpent || null,
-        ease_factor: review.easeFactor || null,
-        interval: review.interval || null,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error recording review:', error);
-      throw new Error(`Failed to record review: ${error.message}`);
-    }
-
-    return data as FlashcardReview;
-  }
-
-  async getDailyStats(userId: string, days: number = 30): Promise<any[]> {
-    // Use the v_daily_review_stats view created in migration
-    const { data, error } = await supabase
-      .from('v_daily_review_stats')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('review_day', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
-      .order('review_day', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching daily stats:', error);
-      return [];
-    }
-
-    return data || [];
-  }
-
-  async getDeckStats(userId: string): Promise<any[]> {
-    // Use the v_deck_stats view
-    const { data, error } = await supabase
-      .from('v_deck_stats')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error('Error fetching deck stats:', error);
-      return [];
-    }
-
-    return data || [];
-  }
-
-  async getRetentionCurve(userId: string, deckId?: string): Promise<any[]> {
-    let query = supabase
-      .from('v_retention_curve')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (deckId) {
-      query = query.eq('deck_id', deckId);
-    }
-
-    const { data, error } = await query.order('days_ago', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching retention curve:', error);
-      return [];
-    }
-
-    return data || [];
   }
 
   // ========================================
@@ -653,7 +549,7 @@ export class SupabaseStorage {
       return [];
     }
 
-    return data as Note[];
+    return (data || []).map(mapDbToNote);
   }
 
   async getNote(id: string): Promise<Note | undefined> {
@@ -668,7 +564,7 @@ export class SupabaseStorage {
       return undefined;
     }
 
-    return data as Note;
+    return mapDbToNote(data);
   }
 
   async createNote(note: InsertNote): Promise<Note> {
@@ -676,6 +572,7 @@ export class SupabaseStorage {
       .from('notes')
       .insert({
         user_id: note.userId,
+        folder_id: note.folderId || null,
         class_id: note.classId || null,
         title: note.title,
         content: note.content,
@@ -692,13 +589,14 @@ export class SupabaseStorage {
       throw new Error(`Failed to create note: ${error.message}`);
     }
 
-    return data as Note;
+    return mapDbToNote(data);
   }
 
   async updateNote(id: string, note: Partial<InsertNote>): Promise<Note | undefined> {
     const updates: any = {};
     if (note.title !== undefined) updates.title = note.title;
     if (note.content !== undefined) updates.content = note.content;
+    if (note.folderId !== undefined) updates.folder_id = note.folderId;
     if (note.category !== undefined) updates.category = note.category;
     if (note.tags !== undefined) updates.tags = note.tags;
     if (note.isPinned !== undefined) updates.is_pinned = note.isPinned;
@@ -716,7 +614,7 @@ export class SupabaseStorage {
       return undefined;
     }
 
-    return data as Note;
+    return mapDbToNote(data);
   }
 
   async deleteNote(id: string): Promise<boolean> {
@@ -1924,17 +1822,16 @@ export class SupabaseStorage {
       totalClasses: 0,
       totalAssignments: 0,
       completedAssignments: 0,
-      totalFlashcards: 0,
+      totalFlashcards: 0, // Will be updated when new flashcard system is built
       totalNotes: 0,
       totalBoards: 0,
       totalCards: 0,
     };
 
     try {
-      const [classes, assignments, flashcards, notes, boards, cards] = await Promise.all([
+      const [classes, assignments, notes, boards, cards] = await Promise.all([
         this.getClassesByUserId(userId),
         this.getAssignmentsByUserId(userId),
-        this.getFlashcardsByUserId(userId),
         this.getNotesByUserId(userId),
         this.getBoardsByUserId(userId),
         this.getCardsByUserId(userId),
@@ -1943,7 +1840,7 @@ export class SupabaseStorage {
       analytics.totalClasses = classes.length;
       analytics.totalAssignments = assignments.length;
       analytics.completedAssignments = assignments.filter((a: any) => a.status === 'completed').length;
-      analytics.totalFlashcards = flashcards.length;
+      // analytics.totalFlashcards will be 0 until new system is built
       analytics.totalNotes = notes.length;
       analytics.totalBoards = boards.length;
       analytics.totalCards = cards.length;
@@ -1995,6 +1892,350 @@ export class SupabaseStorage {
   
   getHabitsForUser(userId: string) {
     return this.getHabitsByUserId(userId);
+  }
+
+  // ========================================
+  // FLASHCARD DECK METHODS
+  // ========================================
+
+  async getFlashcardDecksByUserId(userId: string): Promise<FlashcardDeck[]> {
+    const { data, error } = await supabase
+      .from('flashcard_decks')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching flashcard decks:', error);
+      return [];
+    }
+
+    return (data || []).map(mapDbToFlashcardDeck);
+  }
+
+  async getFlashcardDeck(id: string): Promise<FlashcardDeck | undefined> {
+    const { data, error } = await supabase
+      .from('flashcard_decks')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching flashcard deck:', error);
+      return undefined;
+    }
+
+    return mapDbToFlashcardDeck(data);
+  }
+
+  async createFlashcardDeck(deck: InsertFlashcardDeck): Promise<FlashcardDeck> {
+    const { data, error } = await supabase
+      .from('flashcard_decks')
+      .insert({
+        user_id: deck.userId,
+        folder_id: deck.folderId || null,
+        title: deck.title || 'Untitled Deck',
+        description: deck.description || '',
+        tags: deck.tags || [],
+        is_public: deck.isPublic ?? false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating flashcard deck:', error);
+      throw new Error(`Failed to create flashcard deck: ${error.message}`);
+    }
+
+    return mapDbToFlashcardDeck(data);
+  }
+
+  async updateFlashcardDeck(id: string, deck: Partial<InsertFlashcardDeck>): Promise<FlashcardDeck | undefined> {
+    const updates: any = {};
+    if (deck.title !== undefined) updates.title = deck.title;
+    if (deck.description !== undefined) updates.description = deck.description;
+    if (deck.tags !== undefined) updates.tags = deck.tags;
+    if (deck.isPublic !== undefined) updates.is_public = deck.isPublic;
+    if (deck.folderId !== undefined) updates.folder_id = deck.folderId;
+    if (deck.lastStudied !== undefined) updates.last_studied = deck.lastStudied;
+
+    const { data, error } = await supabase
+      .from('flashcard_decks')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating flashcard deck:', error);
+      return undefined;
+    }
+
+    return mapDbToFlashcardDeck(data);
+  }
+
+  async deleteFlashcardDeck(id: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('flashcard_decks')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting flashcard deck:', error);
+      return false;
+    }
+
+    return true;
+  }
+
+  // ========================================
+  // FLASHCARD (INDIVIDUAL CARD) METHODS
+  // ========================================
+
+  async getFlashcardsByDeckId(deckId: string): Promise<Flashcard[]> {
+    const { data, error } = await supabase
+      .from('flashcards')
+      .select('*')
+      .eq('deck_id', deckId)
+      .order('position', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching flashcards:', error);
+      return [];
+    }
+
+    return (data || []).map(mapDbToFlashcard);
+  }
+
+  async createFlashcard(card: InsertFlashcard): Promise<Flashcard> {
+    const { data, error } = await supabase
+      .from('flashcards')
+      .insert({
+        deck_id: card.deckId,
+        term: card.term || '',
+        definition: card.definition || '',
+        term_image: card.termImage || null,
+        definition_image: card.definitionImage || null,
+        term_audio: card.termAudio || null,
+        definition_audio: card.definitionAudio || null,
+        position: card.position ?? 0,
+        is_starred: card.isStarred ?? false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating flashcard:', error);
+      throw new Error(`Failed to create flashcard: ${error.message}`);
+    }
+
+    return mapDbToFlashcard(data);
+  }
+
+  async createFlashcardsBatch(cards: InsertFlashcard[]): Promise<Flashcard[]> {
+    if (cards.length === 0) return [];
+    const rows = cards.map((c) => ({
+      deck_id: c.deckId,
+      term: c.term || '',
+      definition: c.definition || '',
+      term_image: c.termImage || null,
+      definition_image: c.definitionImage || null,
+      term_audio: c.termAudio || null,
+      definition_audio: c.definitionAudio || null,
+      position: c.position ?? 0,
+      is_starred: c.isStarred ?? false,
+    }));
+
+    const { data, error } = await supabase
+      .from('flashcards')
+      .insert(rows)
+      .select();
+
+    if (error) {
+      console.error('Error batch creating flashcards:', error);
+      throw new Error(`Failed to batch create flashcards: ${error.message}`);
+    }
+
+    return (data || []).map(mapDbToFlashcard);
+  }
+
+  async updateFlashcard(id: string, card: Partial<InsertFlashcard>): Promise<Flashcard | undefined> {
+    const updates: any = {};
+    if (card.term !== undefined) updates.term = card.term;
+    if (card.definition !== undefined) updates.definition = card.definition;
+    if (card.termImage !== undefined) updates.term_image = card.termImage;
+    if (card.definitionImage !== undefined) updates.definition_image = card.definitionImage;
+    if (card.termAudio !== undefined) updates.term_audio = card.termAudio;
+    if (card.definitionAudio !== undefined) updates.definition_audio = card.definitionAudio;
+    if (card.position !== undefined) updates.position = card.position;
+    if (card.isStarred !== undefined) updates.is_starred = card.isStarred;
+
+    const { data, error } = await supabase
+      .from('flashcards')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating flashcard:', error);
+      return undefined;
+    }
+
+    return mapDbToFlashcard(data);
+  }
+
+  async deleteFlashcard(id: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('flashcards')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting flashcard:', error);
+      return false;
+    }
+
+    return true;
+  }
+
+  async deleteFlashcardsByDeckId(deckId: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('flashcards')
+      .delete()
+      .eq('deck_id', deckId);
+
+    if (error) {
+      console.error('Error deleting flashcards by deck:', error);
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Save a full deck with all its cards in one go.
+   * Creates the deck row, then batch-inserts all cards.
+   * Returns the created deck (with cardCount populated by trigger).
+   */
+  async saveFlashcardDeckWithCards(
+    deckInput: InsertFlashcardDeck,
+    cards: Omit<InsertFlashcard, 'deckId'>[]
+  ): Promise<{ deck: FlashcardDeck; cards: Flashcard[] }> {
+    // 1. Create deck
+    const deck = await this.createFlashcardDeck(deckInput);
+
+    // 2. Batch insert cards with deck_id
+    const cardInputs: InsertFlashcard[] = cards.map((c, i) => ({
+      ...c,
+      deckId: deck.id,
+      position: c.position ?? i,
+    }));
+
+    const savedCards = await this.createFlashcardsBatch(cardInputs);
+
+    // 3. Re-fetch deck to get updated card_count from trigger
+    const updatedDeck = await this.getFlashcardDeck(deck.id);
+
+    return { deck: updatedDeck || deck, cards: savedCards };
+  }
+
+  /**
+   * Update an existing deck: update metadata and replace all cards.
+   * Deletes existing cards, re-inserts from the provided array.
+   */
+  async updateFlashcardDeckWithCards(
+    deckId: string,
+    deckUpdates: Partial<InsertFlashcardDeck>,
+    cards: Omit<InsertFlashcard, 'deckId'>[]
+  ): Promise<{ deck: FlashcardDeck; cards: Flashcard[] }> {
+    // 1. Update deck metadata
+    await this.updateFlashcardDeck(deckId, deckUpdates);
+
+    // 2. Delete old cards
+    await this.deleteFlashcardsByDeckId(deckId);
+
+    // 3. Insert new cards
+    const cardInputs: InsertFlashcard[] = cards.map((c, i) => ({
+      ...c,
+      deckId,
+      position: c.position ?? i,
+    }));
+
+    const savedCards = await this.createFlashcardsBatch(cardInputs);
+
+    // 4. Re-fetch deck for latest state
+    const updatedDeck = await this.getFlashcardDeck(deckId);
+
+    return { deck: updatedDeck!, cards: savedCards };
+  }
+
+  // ========================================
+  // FLASHCARD STUDY PROGRESS METHODS
+  // ========================================
+
+  async getStudyProgress(userId: string, cardId: string): Promise<FlashcardStudyProgress | undefined> {
+    const { data, error } = await supabase
+      .from('flashcard_study_progress')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('card_id', cardId)
+      .single();
+
+    if (error) return undefined;
+    return mapDbToStudyProgress(data);
+  }
+
+  async getStudyProgressByDeck(userId: string, deckId: string): Promise<FlashcardStudyProgress[]> {
+    // Join through flashcards table to get progress for all cards in a deck
+    const cards = await this.getFlashcardsByDeckId(deckId);
+    if (cards.length === 0) return [];
+
+    const cardIds = cards.map((c) => c.id);
+    const { data, error } = await supabase
+      .from('flashcard_study_progress')
+      .select('*')
+      .eq('user_id', userId)
+      .in('card_id', cardIds);
+
+    if (error) {
+      console.error('Error fetching study progress:', error);
+      return [];
+    }
+
+    return (data || []).map(mapDbToStudyProgress);
+  }
+
+  async upsertStudyProgress(progress: InsertFlashcardStudyProgress): Promise<FlashcardStudyProgress | undefined> {
+    const { data, error } = await supabase
+      .from('flashcard_study_progress')
+      .upsert(
+        {
+          user_id: progress.userId,
+          card_id: progress.cardId,
+          ease_factor: progress.easeFactor ?? 2.5,
+          interval_days: progress.intervalDays ?? 0,
+          repetitions: progress.repetitions ?? 0,
+          next_review: progress.nextReview || null,
+          last_reviewed: progress.lastReviewed || null,
+          quality: progress.quality ?? 0,
+        },
+        { onConflict: 'user_id,card_id' }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error upserting study progress:', error);
+      return undefined;
+    }
+
+    return mapDbToStudyProgress(data);
+  }
+
+  // Aliases
+  getFlashcardDecksForUser(userId: string) {
+    return this.getFlashcardDecksByUserId(userId);
   }
 }
 

@@ -3,5 +3,6 @@
  * Main export file for HAC scraper functionality
  */
 
-export * from './types';
-export * from './scraper';
+export * from './types.js';
+export * from './scraper.js';
+export * from './session-token.js';

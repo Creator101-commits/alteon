@@ -1,1239 +1,338 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
-import { storage } from "@/lib/supabase-storage";
-import { Flashcard, InsertFlashcard, Note, FlashcardDeck } from "@shared/schema";
-import { GroqAPI } from "@/lib/groq";
-import DeckManager from "./DeckManager";
-import { ErrorBoundary } from "../ErrorBoundary";
-import {
+  BookOpen,
   Brain,
-  Plus,
-  RotateCcw,
-  Eye,
-  EyeOff,
-  ThumbsUp,
-  ThumbsDown,
-  Edit,
-  Trash2,
-  Download,
-  Upload,
-  Link,
-  Bot,
-  FileText,
-  StickyNote,
-  Wand2,
+  Clock,
+  Layers,
   Loader2,
-  Maximize,
-  Minimize,
-} from "lucide-react";
+  RefreshCw,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
+import { FlashcardViewer } from './FlashcardViewer';
+import type { FlashcardDeckData } from './FlashcardViewer';
+import { FlashcardCreator } from './FlashcardCreator';
+import { useAuth } from '@/contexts/AuthContext';
+import { storage } from '@/lib/supabase-storage';
+import type { FlashcardDeck, Flashcard } from '@shared/schema';
+
+// Format a Date as a relative time string
+function timeAgo(date: Date | string | null): string {
+  if (!date) return '';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const seconds = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString();
+}
+
+// Deck card in the list
+interface DeckCardProps {
+  deck: FlashcardDeck;
+  onOpen: () => void;
+  onDelete: () => void;
+}
+
+function DeckCard({ deck, onOpen, onDelete }: DeckCardProps) {
+  return (
+    <Card
+      className="group cursor-pointer hover:border-primary/40 transition-colors"
+      onClick={onOpen}
+    >
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between mb-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Layers className="h-5 w-5 text-primary" />
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-destructive/10"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </button>
+        </div>
+        <h3 className="font-semibold text-sm mb-1 line-clamp-1">{deck.title}</h3>
+        {deck.description && (
+          <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{deck.description}</p>
+        )}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <BookOpen className="h-3 w-3" />
+            {deck.cardCount ?? 0} cards
+          </span>
+          <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {timeAgo(deck.updatedAt)}
+          </span>
+        </div>
+        {(deck.tags?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {deck.tags!.slice(0, 3).map((tag) => (
+              <Badge key={tag} variant="outline" className="text-[10px] px-1.5 py-0">
+                {tag}
+              </Badge>
+            ))}
+            {deck.tags!.length > 3 && (
+              <span className="text-[10px] text-muted-foreground">+{deck.tags!.length - 3}</span>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Convert Supabase FlashcardDeck + Flashcard[] into the FlashcardDeckData shape the viewer expects */
+function toViewerDeck(deck: FlashcardDeck, cards: Flashcard[]): FlashcardDeckData {
+  return {
+    id: deck.id,
+    title: deck.title,
+    description: deck.description ?? '',
+    tags: deck.tags ?? [],
+    cards: cards.map((c) => ({
+      id: c.id,
+      term: c.term,
+      definition: c.definition,
+      termImage: c.termImage ?? undefined,
+      definitionImage: c.definitionImage ?? undefined,
+      termAudio: c.termAudio ?? undefined,
+      definitionAudio: c.definitionAudio ?? undefined,
+    })),
+    isPublic: deck.isPublic ?? false,
+    createdAt: typeof deck.createdAt === 'string' ? new Date(deck.createdAt) : deck.createdAt ?? new Date(),
+    updatedAt: typeof deck.updatedAt === 'string' ? new Date(deck.updatedAt) : deck.updatedAt ?? new Date(),
+  };
+}
 
 export const Flashcards = () => {
-  const { toast } = useToast();
   const { user } = useAuth();
-  
-  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasError, setHasError] = useState(false);
-
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [newCard, setNewCard] = useState({ 
-    front: "", 
-    back: "", 
-    difficulty: "medium" as "easy" | "medium" | "hard",
-    deckId: "",
-    subdeckId: ""
-  });
-
-  // AI Flashcards state
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [aiInputType, setAiInputType] = useState<"text" | "note" | "file" | "document">("text");
-  const [aiInputText, setAiInputText] = useState("");
-  const [selectedNoteId, setSelectedNoteId] = useState("");
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedCards, setGeneratedCards] = useState<{ front: string; back: string; difficulty: string }[]>([]);
-  const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
-  const [uploadedDocument, setUploadedDocument] = useState<{ jobId: string; fileName: string; status: string } | null>(null);
-  const [isProcessingDocument, setIsProcessingDocument] = useState(false);
-  const [documentContent, setDocumentContent] = useState<string>("");
-
-  // Deck management state
   const [decks, setDecks] = useState<FlashcardDeck[]>([]);
-  const [selectedDeckId, setSelectedDeckId] = useState("");
-  const [studyDeckId, setStudyDeckId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("manage");
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [viewingDeck, setViewingDeck] = useState<FlashcardDeckData | null>(null);
+  const [editingDeck, setEditingDeck] = useState<FlashcardDeckData | null>(null);
+  const [search, setSearch] = useState('');
 
-  // Get filtered flashcards based on study deck
-  const filteredFlashcards = studyDeckId 
-    ? flashcards.filter(card => card.deckId === studyDeckId)
-    : flashcards;
-  
-  const currentCard = filteredFlashcards[currentCardIndex];
-
-  // Load decks from database
-  const loadDecks = async () => {
+  // Load decks from Supabase
+  const fetchDecks = useCallback(async () => {
     if (!user?.uid) return;
-    
+    setLoading(true);
     try {
       const data = await storage.getFlashcardDecksByUserId(user.uid);
-      console.log(' Raw decks data:', data);
       setDecks(data);
-      console.log(' Loaded decks:', data.length);
-    } catch (error) {
-      console.error('Error loading decks:', error);
-    }
-  };
-
-  // Load flashcards from database
-  const loadFlashcards = async () => {
-    if (!user?.uid) return;
-    
-    setIsLoading(true);
-    try {
-      const data = await storage.getFlashcardsByUserId(user.uid);
-      setFlashcards(data);
-      console.log(' Loaded flashcards:', data.length);
-    } catch (error) {
-      console.error('Error loading flashcards:', error);
-      setHasError(true);
-      toast({
-        title: "Error",
-        description: "Failed to load flashcards",
-        variant: "destructive",
-      });
+    } catch (err) {
+      console.error('Error loading flashcard decks:', err);
     } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Create new flashcard
-  const createFlashcard = async () => {
-    if (!user?.uid || !newCard.front.trim() || !newCard.back.trim()) {
-      toast({
-        title: "Error",
-        description: "Please fill in both front and back of the flashcard",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      console.log(' Creating flashcard with data:', {
-        front: newCard.front,
-        back: newCard.back,
-        difficulty: newCard.difficulty,
-        deckId: newCard.deckId,
-        subdeckId: newCard.subdeckId,
-        finalDeckId: newCard.subdeckId || newCard.deckId || null,
-        willUseSubdeck: !!newCard.subdeckId,
-        willUseParentDeck: !newCard.subdeckId && !!newCard.deckId
-      });
-      
-      const createdFlashcard = await storage.createFlashcard({
-        userId: user.uid,
-        front: newCard.front,
-        back: newCard.back,
-        difficulty: newCard.difficulty,
-        deckId: newCard.subdeckId ? newCard.subdeckId : (newCard.deckId || null),
-      });
-
-      setFlashcards(prev => [...prev, createdFlashcard]);
-      setNewCard({ front: "", back: "", difficulty: "medium", deckId: "", subdeckId: "" });
-      setIsCreateDialogOpen(false);
-      toast({
-        title: "Success",
-        description: "Flashcard created successfully",
-      });
-    } catch (error) {
-      console.error('Error creating flashcard:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create flashcard",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Update flashcard review stats
-  const updateFlashcardStats = async (flashcardId: string, correct: boolean) => {
-    try {
-      const flashcard = flashcards.find(f => f.id === flashcardId);
-      if (!flashcard) return;
-
-      const updatedReviewCount = (flashcard.reviewCount || 0) + 1;
-      const updatedLastReviewed = new Date();
-
-      const updatedFlashcard = await storage.updateFlashcard(flashcardId, {
-        reviewCount: updatedReviewCount,
-        lastReviewed: updatedLastReviewed,
-      });
-
-      if (updatedFlashcard) {
-        setFlashcards(prev => prev.map(f => 
-          f.id === flashcardId 
-            ? { ...f, reviewCount: updatedReviewCount, lastReviewed: updatedLastReviewed }
-            : f
-        ));
-      }
-    } catch (error) {
-      console.error('Error updating flashcard stats:', error);
-    }
-  };
-
-  // Delete flashcard
-  const deleteFlashcard = async (flashcardId: string) => {
-    try {
-      const success = await storage.deleteFlashcard(flashcardId);
-      if (success) {
-        setFlashcards(prev => prev.filter(f => f.id !== flashcardId));
-        toast({
-          title: "Success",
-          description: "Flashcard deleted successfully",
-        });
-      } else {
-        throw new Error('Failed to delete flashcard');
-      }
-    } catch (error) {
-      console.error('Error deleting flashcard:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete flashcard",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Helper function to strip HTML tags
-  const stripHtmlTags = (html: string) => {
-    return html.replace(/<[^>]+>/g, "");
-  };
-
-  // Load notes for AI flashcards
-  const loadNotes = async () => {
-    if (!user?.uid) return;
-    
-    try {
-      const data = await storage.getNotesByUserId(user.uid);
-      setNotes(data);
-      console.log(' Loaded notes for AI flashcards:', data.length);
-    } catch (error) {
-      console.error('Error loading notes:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load notes for AI flashcards",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Handle document upload for AI flashcards
-  const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const allowedTypes = [
-      "application/pdf",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-    ];
-    
-    if (!allowedTypes.includes(file.type)) {
-      toast({
-        title: "Error",
-        description: "Please upload a PDF or PPTX file",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsProcessingDocument(true);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch("/api/document-intel/sessions", {
-        method: "POST",
-        headers: {
-          "x-user-id": user?.uid || "",
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to upload document");
-      }
-
-      const data = await response.json();
-      
-      setUploadedDocument({
-        jobId: data.jobId,
-        fileName: file.name,
-        status: "processing",
-      });
-
-      toast({
-        title: "Document Uploaded",
-        description: "Processing your document...",
-      });
-
-      // Poll for document content
-      pollDocumentContent(data.jobId);
-    } catch (error) {
-      console.error("Document upload error:", error);
-      toast({
-        title: "Upload Failed",
-        description: error instanceof Error ? error.message : "Failed to upload document",
-        variant: "destructive",
-      });
-      setIsProcessingDocument(false);
-    }
-  };
-
-  // Poll for document content
-  const pollDocumentContent = async (jobId: string) => {
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/document-intel/sessions/${jobId}/content`, {
-          headers: {
-            "x-user-id": user?.uid || "",
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          clearInterval(pollInterval);
-          
-          setDocumentContent(data.content);
-          setUploadedDocument(prev => prev ? { ...prev, status: "ready" } : null);
-          setIsProcessingDocument(false);
-          
-          toast({
-            title: "Document Ready",
-            description: "Your document has been processed and is ready for flashcard generation!",
-          });
-        } else if (response.status === 404) {
-          // Still processing
-          console.log("Document still processing...");
-        } else {
-          // Error occurred
-          console.error("Error fetching document:", response.statusText);
-          clearInterval(pollInterval);
-          setIsProcessingDocument(false);
-          setUploadedDocument(prev => prev ? { ...prev, status: "error" } : null);
-          toast({
-            title: "Processing Failed",
-            description: "Failed to process document",
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
-        console.error("Error polling document status:", error);
-      }
-    }, 2000);
-  };
-
-  // Generate flashcards using AI
-  const generateFlashcards = async () => {
-    if (!user?.uid) return;
-
-    let content = "";
-    
-    // Get content based on input type
-    if (aiInputType === "text") {
-      content = aiInputText.trim();
-    } else if (aiInputType === "note") {
-      const selectedNote = notes.find(note => note.id === selectedNoteId);
-      if (selectedNote) {
-        content = stripHtmlTags(selectedNote.content);
-      }
-    } else if (aiInputType === "file" && uploadedFile) {
-      const text = await uploadedFile.text();
-      content = text;
-    } else if (aiInputType === "document" && documentContent) {
-      content = documentContent;
-    }
-
-    if (!content.trim()) {
-      toast({
-        title: "Error",
-        description: "Please provide content to generate flashcards from",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsGenerating(true);
-    try {
-      const groq = new GroqAPI();
-      
-      const prompt = `Generate flashcards from the following content. Create 5-10 high-quality flashcards that would be useful for studying. Each flashcard should have a clear question on the front and a comprehensive answer on the back. Format your response as a JSON array where each object has "front", "back", and "difficulty" (easy/medium/hard) fields.
-
-Content:
-${content}
-
-Return only the JSON array, no other text.`;
-
-      const response = await groq.chat({
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        maxTokens: 2000,
-        temperature: 0.7,
-      });
-
-      // Parse the AI response
-      const cardsData = JSON.parse(response.content);
-      
-      if (Array.isArray(cardsData)) {
-        setGeneratedCards(cardsData);
-        toast({
-          title: "Success",
-          description: `Generated ${cardsData.length} flashcards!`,
-        });
-      } else {
-        throw new Error("Invalid response format from AI");
-      }
-    } catch (error) {
-      console.error('Error generating flashcards:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate flashcards. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  // Save generated flashcards to database
-  const saveGeneratedFlashcards = async () => {
-    if (!user?.uid || generatedCards.length === 0) return;
-
-    try {
-      const promises = generatedCards.map(card => 
-        storage.createFlashcard({
-          userId: user.uid,
-          front: card.front,
-          back: card.back,
-          difficulty: card.difficulty,
-        })
-      );
-
-      await Promise.all(promises);
-      
-      // Reload flashcards
-      await loadFlashcards();
-      
-      // Reset AI state
-      setGeneratedCards([]);
-      setAiInputText("");
-      setSelectedNoteId("");
-      setUploadedFile(null);
-      setIsAiDialogOpen(false);
-      
-      toast({
-        title: "Success",
-        description: `Saved ${generatedCards.length} flashcards!`,
-      });
-    } catch (error) {
-      console.error('Error saving flashcards:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save some flashcards. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Handle file upload
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && file.type === "text/plain") {
-      setUploadedFile(file);
-    } else {
-      toast({
-        title: "Error",
-        description: "Please upload a .txt file",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Load flashcards on component mount
-  useEffect(() => {
-    try {
-      loadFlashcards();
-      loadNotes();
-      loadDecks();
-    } catch (error) {
-      console.error('Flashcards component initialization error:', error);
-      setHasError(true);
+      setLoading(false);
     }
   }, [user?.uid]);
 
+  useEffect(() => {
+    fetchDecks();
+  }, [fetchDecks]);
 
-  const startStudyingDeck = (deckId: string) => {
-    setStudyDeckId(deckId);
-    setCurrentCardIndex(0);
-    setIsFlipped(false);
-    setActiveTab("study");
-  };
-
-  const clearStudyFilter = () => {
-    setStudyDeckId(null);
-    setCurrentCardIndex(0);
-    setIsFlipped(false);
-  };
-
-  const nextCard = () => {
-    setCurrentCardIndex((prev) => (prev + 1) % filteredFlashcards.length);
-    setIsFlipped(false);
-  };
-
-  const previousCard = () => {
-    setCurrentCardIndex((prev) => (prev - 1 + filteredFlashcards.length) % filteredFlashcards.length);
-    setIsFlipped(false);
-  };
-
-  const markAnswer = async (correct: boolean) => {
-    if (!currentCard) return;
-
-    // Update in database
-    await updateFlashcardStats(currentCard.id, correct);
-
-    // Move to next card
-    nextCard();
-  };
-
-  const getDifficultyColor = (difficulty: string | null) => {
-    switch (difficulty) {
-      case "easy":
-        return "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200";
-      case "medium":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200";
-      case "hard":
-        return "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200";
-      default:
-        return "bg-muted text-foreground";
+  // Open a deck: fetch its cards then show viewer
+  const openDeck = useCallback(async (deck: FlashcardDeck) => {
+    try {
+      const cards = await storage.getFlashcardsByDeckId(deck.id);
+      setViewingDeck(toViewerDeck(deck, cards));
+    } catch (err) {
+      console.error('Error loading flashcard cards:', err);
     }
-  };
+  }, []);
 
-  const getDeckInfo = (deckId: string | null) => {
-    if (!deckId) return null;
-    const deck = decks.find(d => d.id === deckId);
-    if (!deck) return { name: "Unknown Deck", isSubdeck: false };
-    
-    const isSubdeck = !!deck.parentDeckId;
-    const parentDeck = isSubdeck ? decks.find(d => d.id === deck.parentDeckId) : null;
-    
-    return {
-      name: deck.name,
-      isSubdeck,
-      parentName: parentDeck?.name
-    };
-  };
+  // Delete a deck
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await storage.deleteFlashcardDeck(id);
+      setDecks((prev) => prev.filter((d) => d.id !== id));
+    } catch (err) {
+      console.error('Error deleting deck:', err);
+    }
+  }, []);
 
-  if (hasError) {
+  const filtered = search
+    ? decks.filter(
+        (d) =>
+          d.title.toLowerCase().includes(search.toLowerCase()) ||
+          (d.tags ?? []).some((t) => t.toLowerCase().includes(search.toLowerCase()))
+      )
+    : decks;
+
+  // Save handler for editing existing deck
+  const handleEditSave = useCallback(async (updatedDeckData: FlashcardDeckData) => {
+    if (!user?.uid) return;
+    try {
+      // Update the deck metadata
+      await storage.updateFlashcardDeck(updatedDeckData.id, {
+        title: updatedDeckData.title,
+        description: updatedDeckData.description,
+        tags: updatedDeckData.tags,
+      });
+
+      // Delete existing cards and re-create them
+      const existingCards = await storage.getFlashcardsByDeckId(updatedDeckData.id);
+      for (const card of existingCards) {
+        await storage.deleteFlashcard(card.id);
+      }
+      for (const card of updatedDeckData.cards) {
+        await storage.createFlashcard({
+          deckId: updatedDeckData.id,
+          term: card.term,
+          definition: card.definition,
+          position: updatedDeckData.cards.indexOf(card),
+        });
+      }
+
+      // Go back to the viewer with refreshed data
+      const freshCards = await storage.getFlashcardsByDeckId(updatedDeckData.id);
+      const freshDecks = await storage.getFlashcardDecksByUserId(user.uid);
+      const freshDeck = freshDecks.find((d) => d.id === updatedDeckData.id);
+      if (freshDeck) {
+        setEditingDeck(null);
+        setViewingDeck(toViewerDeck(freshDeck, freshCards));
+      } else {
+        setEditingDeck(null);
+      }
+      fetchDecks();
+    } catch (err) {
+      console.error('Error saving edited deck:', err);
+    }
+  }, [user?.uid, fetchDecks]);
+
+  // Full-screen editor
+  if (editingDeck) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Brain className="h-5 w-5 mr-2 text-primary" />
-            Flashcards
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-center py-8">
-          <Brain className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <p className="text-muted-foreground mb-4">Something went wrong loading flashcards</p>
-          <Button onClick={() => {
-            setHasError(false);
-            loadFlashcards();
-          }}>
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Try Again
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="fixed inset-0 z-50 bg-background overflow-auto">
+        <FlashcardCreator
+          initialDeck={editingDeck}
+          onClose={() => {
+            // Go back to the viewer
+            setEditingDeck(null);
+            if (viewingDeck) {
+              // Re-open viewer with latest data
+              const deckObj = decks.find((d) => d.id === editingDeck.id);
+              if (deckObj) {
+                openDeck(deckObj);
+              }
+            }
+          }}
+          onSave={handleEditSave}
+        />
+      </div>
     );
   }
 
-  if (flashcards.length === 0) {
+  // Full-screen viewer
+  if (viewingDeck) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Brain className="h-5 w-5 mr-2 text-primary" />
-            Flashcards
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-center py-12">
-          <Brain className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No flashcards yet</h3>
-          <p className="text-muted-foreground mb-4">
-            Create your first flashcard to start studying
-          </p>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gradient-bg">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Flashcard
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Flashcard</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="front">Front (Question/Term)</Label>
-                  <Textarea
-                    id="front"
-                    placeholder="Enter the question or term..."
-                    value={newCard.front}
-                    onChange={(e) => setNewCard(prev => ({ ...prev, front: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="back">Back (Answer/Definition)</Label>
-                  <Textarea
-                    id="back"
-                    placeholder="Enter the answer or definition..."
-                    value={newCard.back}
-                    onChange={(e) => setNewCard(prev => ({ ...prev, back: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="deck">Deck (Class)</Label>
-                  <select 
-                    value={newCard.deckId} 
-                    onChange={(e) => {
-                      console.log(' Deck selected:', e.target.value);
-                      setNewCard(prev => ({ ...prev, deckId: e.target.value, subdeckId: "" }));
-                    }}
-                    className="w-full p-2 border rounded-md"
-                  >
-                    <option value="">Select a deck (class)</option>
-                    {decks.filter(deck => !deck.parentDeckId).map(deck => (
-                      <option key={deck.id} value={deck.id}>
-                        {deck.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {newCard.deckId && (
-                  <div>
-                    <Label htmlFor="subdeck">Subdeck (Topic/Assignment)</Label>
-                    <select 
-                      value={newCard.subdeckId} 
-                      onChange={(e) => {
-                        console.log(' Subdeck selected:', e.target.value);
-                        setNewCard(prev => ({ ...prev, subdeckId: e.target.value }));
-                      }}
-                      className="w-full p-2 border rounded-md"
-                    >
-                      <option value="">No subdeck</option>
-                      {decks.filter(deck => deck.parentDeckId === newCard.deckId).map(deck => (
-                        <option key={deck.id} value={deck.id}>
-                          {deck.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={createFlashcard} className="gradient-bg">
-                    Create
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </CardContent>
-      </Card>
+      <div className="fixed inset-0 z-50 bg-background overflow-auto">
+        <FlashcardViewer
+          deck={viewingDeck}
+          onClose={() => {
+            setViewingDeck(null);
+            fetchDecks(); // Refresh list when coming back
+          }}
+          onEdit={() => {
+            // Open the editor with the current deck's data
+            setEditingDeck(viewingDeck);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="w-full max-w-4xl mx-auto p-6 flex flex-col items-center justify-center gap-4 py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading your flashcard decks...</p>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (decks.length === 0) {
+    return (
+      <div className="w-full max-w-4xl mx-auto p-6 flex flex-col items-center justify-center gap-4 py-20">
+        <div className="p-4 rounded-full bg-primary/10">
+          <Brain className="h-12 w-12 text-primary" />
+        </div>
+        <h2 className="text-xl font-semibold">No flashcard decks yet</h2>
+        <p className="text-sm text-muted-foreground text-center max-w-md">
+          Create your first flashcard deck from the <strong>Files</strong> tab by clicking{' '}
+          <strong>New &rarr; Flashcards &rarr; Create from scratch</strong>.
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="study">Study</TabsTrigger>
-            <TabsTrigger value="manage">Manage Cards</TabsTrigger>
-            <TabsTrigger value="ai">AI Flashcards</TabsTrigger>
-          </TabsList>
-          
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="outline" 
-              onClick={loadFlashcards}
-              disabled={isLoading}
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gradient-bg">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Card
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Flashcard</DialogTitle>
-                </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="front">Front (Question/Term)</Label>
-                  <Textarea
-                    id="front"
-                    placeholder="Enter the question or term..."
-                    value={newCard.front}
-                    onChange={(e) => setNewCard(prev => ({ ...prev, front: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="back">Back (Answer/Definition)</Label>
-                  <Textarea
-                    id="back"
-                    placeholder="Enter the answer or definition..."
-                    value={newCard.back}
-                    onChange={(e) => setNewCard(prev => ({ ...prev, back: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="deck">Deck (Class)</Label>
-                  <select 
-                    value={newCard.deckId} 
-                    onChange={(e) => {
-                      console.log(' Deck selected:', e.target.value);
-                      setNewCard(prev => ({ ...prev, deckId: e.target.value, subdeckId: "" }));
-                    }}
-                    className="w-full p-2 border rounded-md"
-                  >
-                    <option value="">Select a deck (class)</option>
-                    {decks.filter(deck => !deck.parentDeckId).map(deck => (
-                      <option key={deck.id} value={deck.id}>
-                        {deck.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {newCard.deckId && (
-                  <div>
-                    <Label htmlFor="subdeck">Subdeck (Topic/Assignment)</Label>
-                    <select 
-                      value={newCard.subdeckId} 
-                      onChange={(e) => {
-                        console.log(' Subdeck selected:', e.target.value);
-                        setNewCard(prev => ({ ...prev, subdeckId: e.target.value }));
-                      }}
-                      className="w-full p-2 border rounded-md"
-                    >
-                      <option value="">No subdeck</option>
-                      {decks.filter(deck => deck.parentDeckId === newCard.deckId).map(deck => (
-                        <option key={deck.id} value={deck.id}>
-                          {deck.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={createFlashcard} className="gradient-bg">
-                    Create
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+    <div className="w-full max-w-5xl mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Flashcards</h1>
+          <p className="text-sm text-muted-foreground">
+            {decks.length} deck{decks.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={fetchDecks}>
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh
+          </Button>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search decks..."
+              className="pl-9 pr-3 py-1.5 text-sm bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary w-56"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2"
+              >
+                <X className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            )}
           </div>
         </div>
+      </div>
 
-        <TabsContent value="study">
-          <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-background' : 'max-w-4xl mx-auto'}`}>
-            {isFullscreen && (
-              <div className="absolute top-4 right-4 z-10">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsFullscreen(false)}
-                >
-                  <Minimize className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-            {filteredFlashcards.length === 0 ? (
-              <Card className="min-h-96">
-                <CardContent className="p-8 h-full flex flex-col items-center justify-center text-center">
-                  <Brain className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">
-                    {studyDeckId ? "No cards in this deck" : "No flashcards available"}
-                  </h3>
-                  <p className="text-muted-foreground mb-4">
-                    {studyDeckId 
-                      ? "This deck doesn't have any flashcards yet. Create some cards to start studying."
-                      : "Create your first flashcard to start studying"
-                    }
-                  </p>
-                  {studyDeckId && (
-                    <Button 
-                      variant="outline" 
-                      onClick={clearStudyFilter}
-                      className="mb-4"
-                    >
-                      Study All Cards
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                {studyDeckId && (
-                  <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Brain className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium">
-                          Studying: {getDeckInfo(studyDeckId)?.name || "Unknown Deck"}
-                        </span>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={clearStudyFilter}
-                      >
-                        Study All Cards
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                <Card className={`${isFullscreen ? 'h-screen' : 'min-h-96'}`}>
-                  <CardContent className="p-8 h-full flex flex-col">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-2">
-                      <Badge className={getDifficultyColor(currentCard?.difficulty || "medium")}>
-                        {currentCard?.difficulty || "medium"}
-                      </Badge>
-                        {currentCard?.deckId && (() => {
-                          const deckInfo = getDeckInfo(currentCard.deckId);
-                          if (!deckInfo) return null;
-                          return (
-                            <Badge variant="outline" className="text-xs">
-                              {deckInfo.isSubdeck 
-                                ? `${deckInfo.parentName} → ${deckInfo.name}`
-                                : deckInfo.name
-                              }
-                            </Badge>
-                          );
-                        })()}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-sm text-muted-foreground">
-                          Card {currentCardIndex + 1} of {filteredFlashcards.length}
-                        </div>
-                        {!isFullscreen && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => setIsFullscreen(true)}
-                          >
-                            <Maximize className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+      {/* Deck grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map((deck) => (
+          <DeckCard
+            key={deck.id}
+            deck={deck}
+            onOpen={() => openDeck(deck)}
+            onDelete={() => handleDelete(deck.id)}
+          />
+        ))}
+      </div>
 
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center space-y-4 max-w-lg">
-                      <div className="min-h-32 flex items-center justify-center">
-                        <p className="text-lg leading-relaxed">
-                          {isFlipped ? currentCard.back : currentCard.front}
-                        </p>
-                      </div>
-                      
-                      <Button
-                        onClick={() => setIsFlipped(!isFlipped)}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        {isFlipped ? (
-                          <>
-                            <EyeOff className="h-4 w-4 mr-2" />
-                            Show Question
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="h-4 w-4 mr-2" />
-                            Show Answer
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    {/* Answer Feedback (only show when flipped) */}
-                    {isFlipped && (
-                      <div className="flex space-x-2">
-                        <Button
-                          onClick={() => markAnswer(false)}
-                          variant="outline"
-                          className="flex-1 text-red-600 border-red-200"
-                        >
-                          <ThumbsDown className="h-4 w-4 mr-2" />
-                          Incorrect
-                        </Button>
-                        <Button
-                          onClick={() => markAnswer(true)}
-                          variant="outline"
-                          className="flex-1 text-green-600 border-green-200"
-                        >
-                          <ThumbsUp className="h-4 w-4 mr-2" />
-                          Correct
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Navigation */}
-                    <div className="flex space-x-2">
-                      <Button
-                        onClick={previousCard}
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        Previous
-                      </Button>
-                      <Button
-                        onClick={nextCard}
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              </>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="manage">
-          <div className="space-y-6">
-            {/* Deck Manager with Error Boundary */}
-            <ErrorBoundary>
-              <DeckManager onStudyDeck={startStudyingDeck} />
-            </ErrorBoundary>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="ai">
-          <div className="space-y-6">
-            {/* AI Input Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Bot className="h-5 w-5 mr-2 text-primary" />
-                  Generate Flashcards with AI
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>Input Source</Label>
-                  <Select value={aiInputType} onValueChange={(value: "text" | "note" | "file" | "document") => setAiInputType(value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="text">
-                        <div className="flex items-center">
-                          <FileText className="h-4 w-4 mr-2" />
-                          Text Input
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="note">
-                        <div className="flex items-center">
-                          <StickyNote className="h-4 w-4 mr-2" />
-                          From Notes
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="document">
-                        <div className="flex items-center">
-                          <FileText className="h-4 w-4 mr-2" />
-                          Upload Document (PDF/PPTX)
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="file">
-                        <div className="flex items-center">
-                          <Upload className="h-4 w-4 mr-2" />
-                          Upload .txt File
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Text Input */}
-                {aiInputType === "text" && (
-                  <div>
-                    <Label htmlFor="ai-text">Content to Generate Flashcards From</Label>
-                    <Textarea
-                      id="ai-text"
-                      placeholder="Paste your study material, lecture notes, or any text content here..."
-                      value={aiInputText}
-                      onChange={(e) => setAiInputText(e.target.value)}
-                      className="min-h-32"
-                    />
-                  </div>
-                )}
-
-                {/* Note Selection */}
-                {aiInputType === "note" && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label>Select a Note</Label>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={loadNotes}
-                        className="text-xs"
-                      >
-                        <RotateCcw className="h-3 w-3 mr-1" />
-                        Refresh
-                      </Button>
-                    </div>
-                    {notes.length === 0 ? (
-                      <div className="p-4 border border-dashed rounded-lg text-center">
-                        <StickyNote className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground mb-2">No notes found</p>
-                        <p className="text-xs text-muted-foreground">Create some notes first to generate flashcards from them</p>
-                      </div>
-                    ) : (
-                      <>
-                        <Select value={selectedNoteId} onValueChange={setSelectedNoteId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Choose a note to generate flashcards from" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {notes.map((note) => (
-                              <SelectItem key={note.id} value={note.id}>
-                                <div className="flex items-center">
-                                  <StickyNote className="h-4 w-4 mr-2" />
-                                  {note.title || "Untitled Note"}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {selectedNoteId && (
-                          <div className="mt-2 p-3 bg-muted/50 rounded-lg">
-                            <p className="text-sm text-muted-foreground">
-                              {stripHtmlTags(notes.find(n => n.id === selectedNoteId)?.content || "").substring(0, 200)}...
-                            </p>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* Document Upload */}
-                {aiInputType === "document" && (
-                  <div>
-                    <Label htmlFor="document-upload">Upload Document</Label>
-                    <div className="mt-2 space-y-3">
-                      <Input
-                        id="document-upload"
-                        type="file"
-                        accept=".pdf,.pptx"
-                        onChange={handleDocumentUpload}
-                        disabled={isProcessingDocument}
-                        className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground"
-                      />
-                      {uploadedDocument && (
-                        <div className="p-4 border rounded-lg space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-primary" />
-                              <span className="text-sm font-medium">{uploadedDocument.fileName}</span>
-                            </div>
-                            {uploadedDocument.status === "processing" && (
-                              <Badge variant="outline" className="animate-pulse">
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                Processing
-                              </Badge>
-                            )}
-                            {uploadedDocument.status === "ready" && (
-                              <Badge className="bg-green-500">
-                                Ready
-                              </Badge>
-                            )}
-                            {uploadedDocument.status === "error" && (
-                              <Badge variant="destructive">
-                                Error
-                              </Badge>
-                            )}
-                          </div>
-                          {uploadedDocument.status === "processing" && (
-                            <p className="text-xs text-muted-foreground">
-                              Please wait while we extract content from your document...
-                            </p>
-                          )}
-                          {uploadedDocument.status === "ready" && (
-                            <p className="text-xs text-muted-foreground">
-                              ✓ Document processed! Ready to generate flashcards.
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* File Upload */}
-                {aiInputType === "file" && (
-                  <div>
-                    <Label htmlFor="file-upload">Upload .txt File</Label>
-                    <div className="mt-2">
-                      <Input
-                        id="file-upload"
-                        type="file"
-                        accept=".txt"
-                        onChange={handleFileUpload}
-                        className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground"
-                      />
-                      {uploadedFile && (
-                        <div className="mt-2 p-3 bg-muted/50 rounded-lg">
-                          <p className="text-sm text-muted-foreground">
-                            Selected: {uploadedFile.name} ({(uploadedFile.size / 1024).toFixed(1)} KB)
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <Button
-                  onClick={generateFlashcards}
-                  disabled={
-                    isGenerating || 
-                    isProcessingDocument ||
-                    (!aiInputText.trim() && !selectedNoteId && !uploadedFile && !documentContent)
-                  }
-                  className="w-full"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : isProcessingDocument ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Processing Document...
-                    </>
-                  ) : (
-                    <>
-                      <Wand2 className="h-4 w-4 mr-2" />
-                      Generate Flashcards
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Generated Cards Preview */}
-            {generatedCards.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>Generated Flashcards ({generatedCards.length})</span>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setGeneratedCards([])}
-                      >
-                        Clear
-                      </Button>
-                      <Button
-                        onClick={saveGeneratedFlashcards}
-                        className="gradient-bg"
-                      >
-                        Save All
-                      </Button>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {generatedCards.map((card, index) => (
-                      <div key={index} className="border rounded-lg p-4 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Badge className={getDifficultyColor(card.difficulty)}>
-                            {card.difficulty}
-                          </Badge>
-                          <span className="text-sm text-muted-foreground">
-                            Card {index + 1}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm text-muted-foreground">Question:</p>
-                          <p className="text-sm">{card.front}</p>
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm text-muted-foreground">Answer:</p>
-                          <p className="text-sm">{card.back}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
+      {filtered.length === 0 && search && (
+        <div className="text-center py-12 text-muted-foreground text-sm">
+          No decks matching &ldquo;{search}&rdquo;
+        </div>
+      )}
     </div>
   );
 };

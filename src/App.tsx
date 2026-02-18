@@ -46,7 +46,7 @@ import {
   LazyCalendar,
   LazyAssignments,
   LazyClasses,
-  LazyNotes,
+  LazyFiles,
   LazyLearn,
   LazyAiChat,
   LazyAnalytics,
@@ -240,11 +240,11 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
-      <Route path="/notes">
+      <Route path="/files">
         <ProtectedRoute fallback={<Landing />}>
           <AppLayout>
-            <Suspense fallback={<PageLoading message="Loading Notes..." />}>
-              <LazyNotes />
+            <Suspense fallback={<PageLoading message="Loading Files..." />}>
+              <LazyFiles />
             </Suspense>
           </AppLayout>
         </ProtectedRoute>

@@ -18,7 +18,7 @@ export const LazyDashboard = lazy(() => import('@/pages/dashboard'));
 export const LazyCalendar = lazy(() => import('@/pages/calendar'));
 export const LazyAssignments = lazy(() => import('@/pages/assignments'));
 export const LazyClasses = lazy(() => import('@/pages/classes'));
-export const LazyNotes = lazy(() => import('@/pages/notes'));
+export const LazyFiles = lazy(() => import('@/pages/files'));
 export const LazyLearn = lazy(() => import('@/pages/learn'));
 export const LazyAiChat = lazy(() => import('@/pages/ai-chat'));
 export const LazyAnalytics = lazy(() => import('@/pages/analytics'));

@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { z } from 'zod';
-import * as hacScraper from '../../lib/hac/scraper';
+import * as hacScraper from '../../lib/hac/scraper.js';
 
 const hacGpaCalculationSchema = z.object({
   selectedCourses: z.array(z.object({

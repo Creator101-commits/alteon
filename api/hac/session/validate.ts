@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import * as hacScraper from '../../../lib/hac/scraper';
+import * as hacScraper from '../../../lib/hac/scraper.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {

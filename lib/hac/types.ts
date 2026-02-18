@@ -22,8 +22,14 @@ export interface HACAssignment {
   name: string;
   category: string;
   score: string;
-  totalPoints?: string;
-  weight?: string;
+  /** Parsed numeric earned points from the score column */
+  earnedPoints: number | null;
+  /** Total possible points for this assignment */
+  totalPoints: number | null;
+  /** Weight multiplier for this assignment (e.g. 1.00) */
+  weight: number | null;
+  /** Calculated percentage: (earnedPoints / totalPoints) * 100 */
+  percentage: number | null;
 }
 
 export interface HACCourse {
@@ -37,6 +43,12 @@ export interface HACCourse {
   numericGrade: number | null;
   gpa: number | null;
   assignments: HACAssignment[];
+}
+
+/** A cycle option available in the HAC dropdown */
+export interface HACCycleOption {
+  text: string;
+  value: string;
 }
 
 export interface HACReportCardCourse {
@@ -62,6 +74,10 @@ export interface HACGradesResponse {
   grades: HACCourse[];
   overallAverage: number;
   highlightedCourse: HACCourse | null;
+  /** Available grading cycles from the HAC dropdown */
+  availableCycles: HACCycleOption[];
+  /** The currently selected cycle value */
+  currentCycle: string | null;
 }
 
 export interface HACLoginResponse {
@@ -82,13 +98,15 @@ export interface HACGPACalculation {
   }[];
 }
 
-// GPA calculation types
-export type CourseLevel = 'regular' | 'advanced' | 'ap';
+// GPA calculation types — includes dual credit and pre-AP
+export type CourseLevel = 'regular' | 'advanced' | 'ap' | 'dual' | 'preap';
 
 export interface GPAScale {
   regular: number;   // 5.0
   advanced: number;  // 5.5
   ap: number;        // 6.0
+  dual: number;      // 6.0
+  preap: number;     // 5.5
 }
 
 // Default HAC base URL (can be overridden)

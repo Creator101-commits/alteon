@@ -1,12 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PomodoroTimer } from "@/components/tools/PomodoroTimer";
-import { Flashcards } from "@/components/tools/Flashcards";
 import { AiSummaryHistory } from "@/components/tools/AiSummaryHistory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useActivity } from "@/contexts/ActivityContext";
 import {
   Clock,
-  Brain,
   Bot,
 } from "lucide-react";
 
@@ -21,14 +19,6 @@ export default function Learn() {
       icon: Clock,
       color: "text-green-500",
       component: PomodoroTimer,
-    },
-    {
-      id: "flashcards",
-      title: "Flashcards",
-      description: "Create and study with interactive flashcards",
-      icon: Brain,
-      color: "text-purple-500",
-      component: Flashcards,
     },
     {
       id: "ai-summaries",
@@ -67,7 +57,7 @@ export default function Learn() {
 
       {/* Simple Tools */}
       <Tabs defaultValue="pomodoro" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           {tools.map((tool) => {
             const Icon = tool.icon;
             return (

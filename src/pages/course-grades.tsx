@@ -120,16 +120,18 @@ function getScoreColor(score: string): string {
   return 'bg-red-500 text-white';
 }
 
-// Format score for display
-function formatScore(score: string): string {
+// Format score for display — prefer percentage when available
+function formatScore(score: string, percentage?: number | null, earnedPoints?: number | null, totalPoints?: number | null): string {
+  // If we have earnedPoints and totalPoints, show fraction
+  if (earnedPoints !== null && earnedPoints !== undefined && totalPoints !== null && totalPoints !== undefined) {
+    return `${earnedPoints}/${totalPoints}`;
+  }
   if (!score || score === 'N/A' || score === '') {
     return 'N/A';
   }
-  // If it already has %, return as-is but clean it up
   if (score.includes('%')) {
     return score.trim();
   }
-  // Try to parse and format
   const num = parseFloat(score);
   if (isNaN(num)) return score;
   return num.toFixed(2);
@@ -143,7 +145,7 @@ export default function CourseGrades() {
   const courseId = params?.courseId ? decodeURIComponent(params.courseId) : null;
   
   // Get cycle from URL query params
-  const [cycleNumber, setCycleNumber] = useState<number | null>(null);
+  const [cycleValue, setCycleValue] = useState<string | null>(null);
   const [cycleGrades, setCycleGrades] = useState<typeof gradesData>(null);
   const [loadingCycle, setLoadingCycle] = useState(false);
   
@@ -152,36 +154,36 @@ export default function CourseGrades() {
     const urlParams = new URLSearchParams(window.location.search);
     const cycle = urlParams.get('cycle');
     if (cycle) {
-      setCycleNumber(parseInt(cycle, 10));
+      setCycleValue(cycle);
     }
   }, []);
   
   // Fetch cycle grades if needed
   useEffect(() => {
     const fetchData = async () => {
-      if (cycleNumber && cycleNumber > 0) {
+      if (cycleValue) {
         setLoadingCycle(true);
         try {
-          const data = await fetchGradesForCycle(cycleNumber);
+          const data = await fetchGradesForCycle(cycleValue);
           setCycleGrades(data);
         } finally {
           setLoadingCycle(false);
         }
       } else {
-        // Reset cycle grades if no cycle number
+        // Reset cycle grades if no cycle value
         setCycleGrades(null);
       }
     };
     fetchData();
-  }, [cycleNumber, fetchGradesForCycle]);
+  }, [cycleValue, fetchGradesForCycle]);
   
   // Determine which data source to use - be explicit
   const dataSource = useMemo(() => {
-    if (cycleNumber && cycleNumber > 0) {
+    if (cycleValue) {
       return cycleGrades;
     }
     return gradesData;
-  }, [cycleNumber, cycleGrades, gradesData]);
+  }, [cycleValue, cycleGrades, gradesData]);
   
   // Find the course - match by courseId first, then by course code in name
   const course = useMemo(() => {
@@ -200,42 +202,49 @@ export default function CourseGrades() {
     return found || null;
   }, [dataSource, courseId]);
 
-  // Calculate category averages
+  // Calculate category averages using earnedPoints/totalPoints when available
   const categoryAverages = useMemo(() => {
     if (!course) return {};
     
-    const categories: { [key: string]: { total: number; count: number } } = {};
+    const categories: { [key: string]: { totalEarned: number; totalPossible: number; simpleTotal: number; simpleCount: number } } = {};
     
     course.assignments.forEach(assignment => {
-      // Get category - skip if it looks like a number/percentage (data issue)
       const cat = assignment.category || 'Other';
       
-      // Filter out invalid categories (numbers, percentages, empty, etc.)
+      // Filter out invalid categories
       if (!cat || /^[\d.%]+$/.test(cat.trim()) || cat.trim() === '') {
         return;
       }
       
       if (!categories[cat]) {
-        categories[cat] = { total: 0, count: 0 };
+        categories[cat] = { totalEarned: 0, totalPossible: 0, simpleTotal: 0, simpleCount: 0 };
       }
       
-      if (assignment.score && assignment.score !== 'N/A' && assignment.score !== '') {
-        // Remove % symbol and parse
+      // Prefer earnedPoints/totalPoints for accuracy
+      if (assignment.earnedPoints !== null && assignment.earnedPoints !== undefined && 
+          assignment.totalPoints !== null && assignment.totalPoints !== undefined && assignment.totalPoints > 0) {
+        categories[cat].totalEarned += assignment.earnedPoints;
+        categories[cat].totalPossible += assignment.totalPoints;
+      } else if (assignment.score && assignment.score !== 'N/A' && assignment.score !== '') {
         const scoreStr = assignment.score.replace('%', '').trim();
         const score = parseFloat(scoreStr);
-        // Only count valid grades between 0-150 (allow some extra credit)
         if (!isNaN(score) && score >= 0 && score <= 150) {
-          categories[cat].total += score;
-          categories[cat].count += 1;
+          categories[cat].simpleTotal += score;
+          categories[cat].simpleCount += 1;
         }
       }
     });
     
     const averages: { [key: string]: number | null } = {};
     for (const [cat, data] of Object.entries(categories)) {
-      if (data.count > 0) {
-        const avg = data.total / data.count;
-        // Only include if average is in reasonable grade range (0-150)
+      if (data.totalPossible > 0) {
+        // Use points-based average (more accurate)
+        const avg = (data.totalEarned / data.totalPossible) * 100;
+        if (avg >= 0 && avg <= 150) {
+          averages[cat] = avg;
+        }
+      } else if (data.simpleCount > 0) {
+        const avg = data.simpleTotal / data.simpleCount;
         if (avg >= 0 && avg <= 150) {
           averages[cat] = avg;
         }
@@ -246,8 +255,8 @@ export default function CourseGrades() {
   }, [course]);
 
   // Show loading only when we're actively fetching and don't have data yet
-  const shouldShowLoading = (cycleNumber && loadingCycle && !cycleGrades) || 
-                           (!cycleNumber && isLoading && !gradesData);
+  const shouldShowLoading = (cycleValue && loadingCycle && !cycleGrades) || 
+                           (!cycleValue && isLoading && !gradesData);
   
   if (shouldShowLoading) {
     return (
@@ -353,12 +362,22 @@ export default function CourseGrades() {
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {assignment.dateDue}
+                            {assignment.weight !== null && assignment.weight !== undefined && assignment.weight !== 1 && (
+                              <span> • Weight: {assignment.weight}</span>
+                            )}
                           </p>
                         </div>
                         
-                        {/* Score badge */}
-                        <div className={`px-3 py-1 rounded-md text-sm font-bold ${getScoreColor(assignment.score)}`}>
-                          {formatScore(assignment.score)}
+                        {/* Score badge — show fraction + percentage */}
+                        <div className="flex items-center gap-2">
+                          {assignment.percentage !== null && assignment.percentage !== undefined && (
+                            <span className="text-xs text-muted-foreground">
+                              {assignment.percentage.toFixed(1)}%
+                            </span>
+                          )}
+                          <div className={`px-3 py-1 rounded-md text-sm font-bold ${getScoreColor(assignment.score)}`}>
+                            {formatScore(assignment.score, assignment.percentage, assignment.earnedPoints, assignment.totalPoints)}
+                          </div>
                         </div>
                       </div>
                     ))

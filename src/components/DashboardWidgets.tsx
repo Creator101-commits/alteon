@@ -566,7 +566,7 @@ export const NotesWidget: React.FC<{ widget: DashboardWidget }> = ({ widget }) =
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={() => setLocation('/notes')}
+            onClick={() => setLocation('/files')}
             className="h-6 px-2 text-xs"
           >
             View All
@@ -586,7 +586,7 @@ export const NotesWidget: React.FC<{ widget: DashboardWidget }> = ({ widget }) =
               <div 
                 key={note.id} 
                 className="text-xs p-2 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
-                onClick={() => setLocation('/notes')}
+                onClick={() => setLocation('/files')}
               >
                 <div className="font-medium text-foreground truncate">{note.title || 'Untitled'}</div>
                 <div className="text-muted-foreground">

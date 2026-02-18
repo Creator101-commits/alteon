@@ -47,19 +47,12 @@ export const usePomodoroSessions = () => {
   });
 };
 
-// Hook for fetching flashcards
+// Hook for fetching flashcards (temporarily disabled - being redesigned)
 export const useFlashcards = () => {
-  const { user } = useAuth();
-  
-  return useQuery({
-    queryKey: ['flashcards', user?.uid],
-    queryFn: async () => {
-      if (!user?.uid) return [];
-      return await supabaseStorage.getFlashcardsByUserId(user.uid);
-    },
-    enabled: !!user?.uid,
-    staleTime: 10 * 60 * 1000, // 10 minutes
-  });
+  return {
+    data: [],
+    isLoading: false,
+  };
 };
 
 // Hook for fetching mood entries

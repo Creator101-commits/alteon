@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, real, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -54,53 +54,64 @@ export const assignments = pgTable("assignments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Flashcard Decks (folders for organizing flashcards)
-export const flashcardDecks = pgTable("flashcard_decks", {
+// Folders (unified organization for notes and flashcards)
+export const folders = pgTable("folders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
   name: text("name").notNull(),
-  description: text("description"),
-  parentDeckId: varchar("parent_deck_id"), // For subdecks
+  parentFolderId: varchar("parent_folder_id"), // For nested folders
   color: text("color").default("#3b82f6"),
+  icon: text("icon"), // Optional icon name
   sortOrder: integer("sort_order").default(0),
+  isExpanded: boolean("is_expanded").default(true), // UI state for tree view
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Flashcard Decks
+export const flashcardDecks = pgTable("flashcard_decks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  folderId: varchar("folder_id").references(() => folders.id, { onDelete: "set null" }),
+  title: text("title").notNull().default("Untitled Deck"),
+  description: text("description").default(""),
+  tags: text("tags").array().default(sql`'{}'`),
+  isPublic: boolean("is_public").default(false),
+  cardCount: integer("card_count").default(0),
+  lastStudied: timestamp("last_studied"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Flashcards (individual cards within a deck)
 export const flashcards = pgTable("flashcards", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  deckId: varchar("deck_id").references(() => flashcardDecks.id),
-  classId: varchar("class_id").references(() => classes.id),
-  cardType: text("card_type").default("basic"), // basic, cloze
-  front: text("front").notNull(),
-  back: text("back").notNull(),
-  clozeText: text("cloze_text"), // For cloze deletion cards
-  clozeIndex: integer("cloze_index"), // Which cloze to show (c1, c2, etc.)
-  difficulty: text("difficulty").default("medium"), // easy, medium, hard
-  lastReviewed: timestamp("last_reviewed"),
-  reviewCount: integer("review_count").default(0),
-  correctCount: integer("correct_count").default(0),
-  incorrectCount: integer("incorrect_count").default(0),
-  easeFactor: integer("ease_factor").default(250), // For spaced repetition (250 = 2.5)
-  interval: integer("interval").default(0), // Days until next review
-  maturityLevel: text("maturity_level").default("new"), // new, learning, young, mature
+  deckId: varchar("deck_id").references(() => flashcardDecks.id, { onDelete: "cascade" }).notNull(),
+  term: text("term").notNull().default(""),
+  definition: text("definition").notNull().default(""),
+  termImage: text("term_image"),
+  definitionImage: text("definition_image"),
+  termAudio: text("term_audio"),
+  definitionAudio: text("definition_audio"),
+  position: integer("position").default(0),
+  isStarred: boolean("is_starred").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Flashcard Review History (for detailed statistics)
-export const flashcardReviews = pgTable("flashcard_reviews", {
+// Flashcard Study Progress (spaced repetition per user+card)
+export const flashcardStudyProgress = pgTable("flashcard_study_progress", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  flashcardId: varchar("flashcard_id").references(() => flashcards.id).notNull(),
-  deckId: varchar("deck_id").references(() => flashcardDecks.id),
-  wasCorrect: boolean("was_correct").notNull(),
-  timeSpent: integer("time_spent"), // Seconds spent on review
-  reviewDate: timestamp("review_date").defaultNow(),
-  easeFactor: integer("ease_factor"), // Ease factor at time of review
-  interval: integer("interval"), // Interval at time of review
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  cardId: varchar("card_id").references(() => flashcards.id, { onDelete: "cascade" }).notNull(),
+  easeFactor: real("ease_factor").default(2.5),
+  intervalDays: integer("interval_days").default(0),
+  repetitions: integer("repetitions").default(0),
+  nextReview: timestamp("next_review"),
+  lastReviewed: timestamp("last_reviewed"),
+  quality: integer("quality").default(0),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const moodEntries = pgTable("mood_entries", {
@@ -159,6 +170,7 @@ export const habits = pgTable("habits", {
 export const notes = pgTable("notes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
+  folderId: varchar("folder_id").references(() => folders.id), // Link to folder for unified file organization
   classId: varchar("class_id").references(() => classes.id), // Optional, can be linked to a specific class
   title: text("title").notNull(),
   content: text("content").notNull(),
@@ -276,6 +288,7 @@ export const userAchievements = pgTable("user_achievements", {
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertClassSchema = createInsertSchema(classes).omit({ id: true, createdAt: true });
+export const insertFolderSchema = createInsertSchema(folders).omit({ id: true, createdAt: true, updatedAt: true });
 
 // HAC (Home Access Center) schemas - not database tables, just validation schemas
 export const hacLoginSchema = z.object({
@@ -292,9 +305,6 @@ export const hacGpaCalculationSchema = z.object({
 export type HACLoginInput = z.infer<typeof hacLoginSchema>;
 export type HACGpaCalculationInput = z.infer<typeof hacGpaCalculationSchema>;
 export const insertAssignmentSchema = createInsertSchema(assignments).omit({ id: true, createdAt: true });
-export const insertFlashcardDeckSchema = createInsertSchema(flashcardDecks).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertFlashcardSchema = createInsertSchema(flashcards).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertFlashcardReviewSchema = createInsertSchema(flashcardReviews).omit({ id: true, createdAt: true });
 export const insertMoodEntrySchema = createInsertSchema(moodEntries).omit({ id: true, createdAt: true });
 export const insertJournalEntrySchema = createInsertSchema(journalEntries).omit({ id: true, createdAt: true });
 export const insertPomodoroSessionSchema = createInsertSchema(pomodoroSessions).omit({ id: true });
@@ -311,20 +321,19 @@ export const insertAttachmentSchema = createInsertSchema(attachments).omit({ id:
 export const insertQuickTaskSchema = createInsertSchema(quickTasks).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUserStatsSchema = createInsertSchema(userStats).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUserAchievementSchema = createInsertSchema(userAchievements).omit({ id: true, unlockedAt: true });
+export const insertFlashcardDeckSchema = createInsertSchema(flashcardDecks).omit({ id: true, createdAt: true, updatedAt: true, cardCount: true });
+export const insertFlashcardSchema = createInsertSchema(flashcards).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertFlashcardStudyProgressSchema = createInsertSchema(flashcardStudyProgress).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Class = typeof classes.$inferSelect;
 export type InsertClass = z.infer<typeof insertClassSchema>;
+export type Folder = typeof folders.$inferSelect;
+export type InsertFolder = z.infer<typeof insertFolderSchema>;
 export type Assignment = typeof assignments.$inferSelect;
 export type InsertAssignment = z.infer<typeof insertAssignmentSchema>;
-export type FlashcardDeck = typeof flashcardDecks.$inferSelect;
-export type InsertFlashcardDeck = z.infer<typeof insertFlashcardDeckSchema>;
-export type Flashcard = typeof flashcards.$inferSelect;
-export type InsertFlashcard = z.infer<typeof insertFlashcardSchema>;
-export type FlashcardReview = typeof flashcardReviews.$inferSelect;
-export type InsertFlashcardReview = z.infer<typeof insertFlashcardReviewSchema>;
 export type MoodEntry = typeof moodEntries.$inferSelect;
 export type InsertMoodEntry = z.infer<typeof insertMoodEntrySchema>;
 export type JournalEntry = typeof journalEntries.$inferSelect;
@@ -357,3 +366,9 @@ export type UserStats = typeof userStats.$inferSelect;
 export type InsertUserStats = z.infer<typeof insertUserStatsSchema>;
 export type UserAchievement = typeof userAchievements.$inferSelect;
 export type InsertUserAchievement = z.infer<typeof insertUserAchievementSchema>;
+export type FlashcardDeck = typeof flashcardDecks.$inferSelect;
+export type InsertFlashcardDeck = z.infer<typeof insertFlashcardDeckSchema>;
+export type Flashcard = typeof flashcards.$inferSelect;
+export type InsertFlashcard = z.infer<typeof insertFlashcardSchema>;
+export type FlashcardStudyProgress = typeof flashcardStudyProgress.$inferSelect;
+export type InsertFlashcardStudyProgress = z.infer<typeof insertFlashcardStudyProgressSchema>;

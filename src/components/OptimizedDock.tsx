@@ -16,7 +16,7 @@ import {
   Home,
   BookOpen,
   GraduationCap,
-  StickyNote,
+  FolderOpen,
   Brain,
   BarChart3,
   Target,
@@ -60,10 +60,10 @@ const baseDockItems: DockItem[] = [
     icon: GraduationCap,
   },
   {
-    id: 'notes',
-    label: 'Notes',
-    path: '/notes',
-    icon: StickyNote,
+    id: 'files',
+    label: 'Files',
+    path: '/files',
+    icon: FolderOpen,
   },
   {
     id: 'habits',
