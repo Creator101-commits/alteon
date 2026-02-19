@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCalendar } from '@/contexts/CalendarContext';
-import { supabaseStorage } from '@/lib/supabase-storage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,8 +12,7 @@ import {
   PomodoroWidget,
   AnalyticsWidget,
   NotesWidget,
-  FlashcardsWidget,
-  WidgetGallery
+  FlashcardsWidget
 } from '@/components/DashboardWidgets';
 import { 
   Clock, 
@@ -203,84 +201,15 @@ interface DashboardWidget {
   isVisible: boolean;
 }
 
-// Default dashboard widgets
-const defaultWidgets: DashboardWidget[] = [
-  { id: 'assignments', type: 'assignments', title: 'Assignments', size: 'medium', position: { x: 0, y: 0 }, isVisible: true },
-  { id: 'pomodoro', type: 'pomodoro', title: 'Study Sessions', size: 'small', position: { x: 2, y: 0 }, isVisible: true },
-  { id: 'notes', type: 'notes', title: 'Notes', size: 'small', position: { x: 0, y: 1 }, isVisible: true },
-  { id: 'flashcards', type: 'flashcards', title: 'Flashcards', size: 'small', position: { x: 1, y: 1 }, isVisible: true },
-];
-
 export default function Dashboard() {
   const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [widgets, setWidgets] = useState(defaultWidgets);
-  const [showWidgetGallery, setShowWidgetGallery] = useState(false);
-  const [widgetsLoaded, setWidgetsLoaded] = useState(false);
 
   // Update time every minute
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
-
-  // Load saved widgets from Supabase
-  useEffect(() => {
-    const loadWidgets = async () => {
-      if (user?.uid) {
-        try {
-          const savedWidgets = await supabaseStorage.getDashboardWidgets(user.uid);
-          if (savedWidgets && savedWidgets.length > 0) {
-            setWidgets(savedWidgets);
-          }
-        } catch (error) {
-          console.error('Error loading dashboard widgets:', error);
-        }
-        setWidgetsLoaded(true);
-      }
-    };
-    loadWidgets();
-  }, [user?.uid]);
-
-  // Save widgets to Supabase (debounced)
-  const saveWidgets = useCallback(async (widgetsToSave: DashboardWidget[]) => {
-    if (user?.uid && widgetsLoaded) {
-      try {
-        await supabaseStorage.saveDashboardWidgets(user.uid, widgetsToSave);
-      } catch (error) {
-        console.error('Error saving dashboard widgets:', error);
-      }
-    }
-  }, [user?.uid, widgetsLoaded]);
-
-  useEffect(() => {
-    if (widgetsLoaded && widgets.length > 0) {
-      saveWidgets(widgets);
-    }
-  }, [widgets, saveWidgets, widgetsLoaded]);
-
-  const addWidget = (type: DashboardWidget['type'], title: string) => {
-    const newWidget: DashboardWidget = {
-      id: `${type}-${Date.now()}`,
-      type,
-      title,
-      size: 'small',
-      position: { x: 0, y: 0 },
-      isVisible: true,
-    };
-    setWidgets(prev => [...prev, newWidget]);
-    setShowWidgetGallery(false);
-  };
-
-  const removeWidget = (widgetId: string) => {
-    setWidgets(prev => prev.filter(w => w.id !== widgetId));
-  };
-
-  const resizeWidget = (widgetId: string, newSize: 'small' | 'medium' | 'large') => {
-    setWidgets(prev => prev.map(w => 
-      w.id === widgetId ? { ...w, size: newSize } : w
-    ));
-  };
 
   const renderWidget = (widget: DashboardWidget) => {
     switch (widget.type) {

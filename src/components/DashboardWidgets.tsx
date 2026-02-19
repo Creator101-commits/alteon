@@ -4,14 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useDragAndDrop } from "@/hooks/useDragAndDrop";
 import { useDashboardAnalytics } from "@/hooks/useDashboardData";
 import { useLocation } from "wouter";
 import {
-  GripVertical,
-  X,
-  Maximize2,
-  Minimize2,
   Calendar,
   CheckSquare,
   Target,
@@ -19,7 +14,6 @@ import {
   Timer,
   BarChart3,
   Book,
-  Plus,
   ArrowRight,
   Clock,
   TrendingUp,
@@ -170,21 +164,8 @@ const getWidgetIcon = (type: string) => {
 
 export const DraggableWidget: React.FC<WidgetProps> = ({ 
   widget, 
-  onRemove, 
-  onResize, 
   children, 
-  data 
 }) => {
-  const { useDraggable } = useDragAndDrop();
-  
-  const dragProps = useDraggable({
-    id: widget.id,
-    type: 'dashboard-widget',
-    data: widget,
-  });
-
-  const IconComponent = getWidgetIcon(widget.type);
-
   const getSizeClasses = (size: 'small' | 'medium' | 'large') => {
     switch (size) {
       case 'small':
@@ -199,10 +180,7 @@ export const DraggableWidget: React.FC<WidgetProps> = ({
   };
 
   return (
-    <Card 
-      className={`${getSizeClasses(widget.size)} relative`}
-      {...dragProps}
-    >
+    <Card className={`${getSizeClasses(widget.size)} relative`}>
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold text-foreground">
           {widget.title}
@@ -687,33 +665,4 @@ export const FlashcardsWidget: React.FC<{ widget: DashboardWidget }> = ({ widget
   );
 };
 
-// Widget gallery for adding new widgets
-export const WidgetGallery: React.FC<{
-  onAddWidget: (type: DashboardWidget['type'], title: string) => void;
-}> = ({ onAddWidget }) => {
-  const widgetTypes = [
-    { type: 'calendar' as const, title: 'Calendar', icon: Calendar },
-    { type: 'assignments' as const, title: 'Assignments', icon: CheckSquare },
-    { type: 'habits' as const, title: 'Habits', icon: Target },
-    { type: 'notes' as const, title: 'Notes', icon: StickyNote },
-    { type: 'pomodoro' as const, title: 'Pomodoro Timer', icon: Timer },
-    { type: 'analytics' as const, title: 'Quick Stats', icon: BarChart3 },
-    { type: 'flashcards' as const, title: 'Flashcards', icon: Book },
-  ];
 
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-      {widgetTypes.map(({ type, title, icon: Icon }) => (
-        <Button
-          key={type}
-          variant="outline"
-          className="h-20 flex flex-col items-center justify-center space-y-1"
-          onClick={() => onAddWidget(type, title)}
-        >
-          <Icon className="h-6 w-6" />
-          <span className="text-xs">{title}</span>
-        </Button>
-      ))}
-    </div>
-  );
-};
