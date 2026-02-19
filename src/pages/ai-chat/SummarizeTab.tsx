@@ -44,8 +44,8 @@ interface SummarizeTabProps {
   showNoteSelector: boolean;
   setShowNoteSelector: (v: boolean) => void;
   messages: ChatMessage[];
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  messagesEndRef: React.Ref<HTMLDivElement>;
   handleTextSummarize: () => void;
   handleNoteSummarize: () => void;
   handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;

@@ -10,7 +10,7 @@ import type { ChatMessage } from "./types";
 interface ChatMessagesViewProps {
   messages: ChatMessage[];
   isLoading: boolean;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  messagesEndRef: React.Ref<HTMLDivElement>;
   copyToClipboard: (text: string) => void;
 }
 
