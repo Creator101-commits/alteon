@@ -121,8 +121,5 @@
     "ajv": "^8.18.0",
     "path-to-regexp": "^8.3.0",
     "@isaacs/brace-expansion": "^5.0.1"
-  },
-  "optionalDependencies": {
-    "bufferutil": "^4.0.8"
   }
 }
