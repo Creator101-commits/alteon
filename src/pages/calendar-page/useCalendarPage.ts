@@ -38,14 +38,10 @@ import {
 
 export function useCalendarPage() {
   const { user } = useAuth();
-  const { events, addEvent, getEventsForDate } = useCalendar();
+  const { events, addEvent, getEventsForDate, isLoading: isCalendarLoading } = useCalendar();
   const { addActivity } = useActivity();
   const { generateOptimalSchedule, saveScheduleToCalendar } = useSmartScheduling();
   const { toast } = useToast();
-
-  // Google Calendar sync disabled — scopes removed to avoid Google verification requirement
-  const googleEvents: any[] = [];
-  const isCalendarLoading = false;
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -56,47 +52,7 @@ export function useCalendarPage() {
 
   // ── Event helpers ─────────────────────────────────────────────────────────
 
-  const getAllEvents = (): CalendarEvent[] => {
-    const convertedGoogleEvents: CalendarEvent[] = googleEvents
-      .map((googleEvent) => {
-        const startTime =
-          googleEvent.startTime instanceof Date
-            ? googleEvent.startTime
-            : new Date(googleEvent.startTime);
-        const endTime =
-          googleEvent.endTime instanceof Date
-            ? googleEvent.endTime
-            : new Date(googleEvent.endTime);
-
-        return {
-          id: googleEvent.id,
-          title: googleEvent.title,
-          start: startTime,
-          end: endTime,
-          startTime,
-          endTime,
-          description: googleEvent.description,
-          location: googleEvent.location,
-          isAllDay: false,
-          priority: 'medium' as const,
-          category: 'meeting' as const,
-          color: 'bg-blue-500',
-          type: 'event' as const,
-          source: 'google' as const,
-          googleEventId: googleEvent.googleEventId,
-          calendarName: googleEvent.calendarName,
-        };
-      })
-      .filter(
-        (event) =>
-          event.startTime instanceof Date &&
-          !isNaN(event.startTime.getTime()) &&
-          event.endTime instanceof Date &&
-          !isNaN(event.endTime.getTime()),
-      );
-
-    return [...events, ...convertedGoogleEvents];
-  };
+  const getAllEvents = (): CalendarEvent[] => events;
 
   const getAllEventsForDate = (date: Date): CalendarEvent[] => {
     return getAllEvents().filter((event) => {
@@ -182,18 +138,23 @@ export function useCalendarPage() {
 
     let eventId: string | undefined;
 
-    // Events are added locally only (Google Calendar sync disabled)
-    eventId = addEvent({
-      title: newEvent.title,
-      description: newEvent.description,
-      startTime,
-      endTime,
-      type: newEvent.type,
-      color: getColorForType(newEvent.type),
-      location: newEvent.location,
-      isAllDay: newEvent.isAllDay,
-    });
-    toast({ title: 'Event Created', description: 'Event added to calendar' });
+    // Save event to Supabase via CalendarContext
+    try {
+      eventId = await addEvent({
+        title: newEvent.title,
+        description: newEvent.description,
+        startTime,
+        endTime,
+        type: newEvent.type,
+        color: getColorForType(newEvent.type),
+        location: newEvent.location,
+        isAllDay: newEvent.isAllDay,
+      });
+      toast({ title: 'Event Created', description: 'Event saved successfully' });
+    } catch (error) {
+      console.error('Failed to create event:', error);
+      toast({ title: 'Error', description: 'Failed to save event', variant: 'destructive' });
+    }
 
     if (eventId) {
       addActivity({

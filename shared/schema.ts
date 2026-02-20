@@ -166,6 +166,23 @@ export const habits = pgTable("habits", {
   isActive: boolean("is_active").default(true),
 });
 
+// Calendar Events (persisted to Supabase instead of localStorage)
+export const calendarEvents = pgTable("calendar_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  type: text("type").default("event"), // assignment, event, class, personal
+  color: text("color").default("bg-blue-500"),
+  location: text("location"),
+  isAllDay: boolean("is_all_day").default(false),
+  assignmentId: varchar("assignment_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 
 export const notes = pgTable("notes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -310,6 +327,7 @@ export const insertJournalEntrySchema = createInsertSchema(journalEntries).omit(
 export const insertPomodoroSessionSchema = createInsertSchema(pomodoroSessions).omit({ id: true });
 export const insertAiSummarySchema = createInsertSchema(aiSummaries).omit({ id: true, createdAt: true });
 export const insertHabitSchema = createInsertSchema(habits).omit({ id: true, createdAt: true });
+export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertNoteSchema = createInsertSchema(notes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertBoardSchema = createInsertSchema(boards).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTodoListSchema = createInsertSchema(todoLists).omit({ id: true, createdAt: true });
@@ -344,6 +362,8 @@ export type AiSummary = typeof aiSummaries.$inferSelect;
 export type InsertAiSummary = z.infer<typeof insertAiSummarySchema>;
 export type Habit = typeof habits.$inferSelect;
 export type InsertHabit = z.infer<typeof insertHabitSchema>;
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
+export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
 export type Note = typeof notes.$inferSelect;
 export type InsertNote = z.infer<typeof insertNoteSchema>;
 export type Board = typeof boards.$inferSelect;

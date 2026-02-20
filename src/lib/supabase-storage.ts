@@ -17,6 +17,8 @@ import type {
   InsertAiSummary,
   Habit,
   InsertHabit,
+  CalendarEvent as CalendarEventDB,
+  InsertCalendarEvent,
   Note,
   InsertNote,
   Folder,
@@ -719,6 +721,110 @@ export class SupabaseStorage {
   async createPomodoroSession(session: InsertPomodoroSession): Promise<PomodoroSession> {
     // Table was dropped - throw informative error
     throw new Error('Pomodoro sessions feature has been removed');
+  }
+
+  // ========================================
+  // CALENDAR EVENT METHODS
+  // ========================================
+
+  private mapDbToCalendarEvent(row: any): CalendarEventDB {
+    return {
+      id: row.id,
+      userId: row.user_id,
+      title: row.title,
+      description: row.description ?? null,
+      startTime: row.start_time ? new Date(row.start_time) : new Date(),
+      endTime: row.end_time ? new Date(row.end_time) : new Date(),
+      type: row.type ?? 'event',
+      color: row.color ?? 'bg-blue-500',
+      location: row.location ?? null,
+      isAllDay: row.is_all_day ?? false,
+      assignmentId: row.assignment_id ?? null,
+      createdAt: row.created_at ? new Date(row.created_at) : null,
+      updatedAt: row.updated_at ? new Date(row.updated_at) : null,
+    };
+  }
+
+  async getCalendarEventsByUserId(userId: string): Promise<CalendarEventDB[]> {
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .select('*')
+      .eq('user_id', userId)
+      .order('start_time', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching calendar events:', error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => this.mapDbToCalendarEvent(row));
+  }
+
+  async createCalendarEvent(event: InsertCalendarEvent): Promise<CalendarEventDB> {
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .insert({
+        user_id: event.userId,
+        title: event.title,
+        description: event.description || null,
+        start_time: event.startTime instanceof Date ? event.startTime.toISOString() : event.startTime,
+        end_time: event.endTime instanceof Date ? event.endTime.toISOString() : event.endTime,
+        type: event.type || 'event',
+        color: event.color || 'bg-blue-500',
+        location: event.location || null,
+        is_all_day: event.isAllDay || false,
+        assignment_id: event.assignmentId || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating calendar event:', error);
+      throw new Error(`Failed to create calendar event: ${error.message}`);
+    }
+
+    return this.mapDbToCalendarEvent(data);
+  }
+
+  async updateCalendarEvent(id: string, event: Partial<InsertCalendarEvent>): Promise<CalendarEventDB | undefined> {
+    const updates: any = { updated_at: new Date().toISOString() };
+    if (event.title !== undefined) updates.title = event.title;
+    if (event.description !== undefined) updates.description = event.description;
+    if (event.startTime !== undefined) updates.start_time = event.startTime instanceof Date ? event.startTime.toISOString() : event.startTime;
+    if (event.endTime !== undefined) updates.end_time = event.endTime instanceof Date ? event.endTime.toISOString() : event.endTime;
+    if (event.type !== undefined) updates.type = event.type;
+    if (event.color !== undefined) updates.color = event.color;
+    if (event.location !== undefined) updates.location = event.location;
+    if (event.isAllDay !== undefined) updates.is_all_day = event.isAllDay;
+    if (event.assignmentId !== undefined) updates.assignment_id = event.assignmentId;
+
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating calendar event:', error);
+      return undefined;
+    }
+
+    return this.mapDbToCalendarEvent(data);
+  }
+
+  async deleteCalendarEvent(id: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('calendar_events')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting calendar event:', error);
+      return false;
+    }
+
+    return true;
   }
 
   // ========================================
