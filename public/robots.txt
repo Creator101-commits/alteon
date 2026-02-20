@@ -1,0 +1,27 @@
+User-agent: *
+
+# Block all authenticated / private pages — no student data should be indexed.
+Disallow: /dashboard
+Disallow: /assignments
+Disallow: /calendar
+Disallow: /classes
+Disallow: /files
+Disallow: /learn
+Disallow: /ai-chat
+Disallow: /analytics
+Disallow: /habits
+Disallow: /todo-list
+Disallow: /settings
+Disallow: /hac-grades
+Disallow: /gpa-calculator
+Disallow: /course-grades
+Disallow: /api/
+
+# Allow public-facing pages
+Allow: /
+Allow: /privacy-policy
+Allow: /terms-of-service
+Allow: /auth
+Allow: /signup
+
+Sitemap: https://alteon.vercel.app/sitemap.xml

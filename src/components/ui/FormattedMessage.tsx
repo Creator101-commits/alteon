@@ -6,18 +6,11 @@ import remarkGfm from 'remark-gfm';
 import { Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import mermaid from 'mermaid';
-
 // Import required CSS
 import 'katex/dist/katex.min.css';
 
-// Initialize Mermaid
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'dark',
-  securityLevel: 'loose',
-  fontFamily: 'monospace',
-});
+// Mermaid is loaded on demand — do NOT import it at the module level.
+// (It is ~1 MB and only needed when an AI response contains a diagram.)
 
 interface FormattedMessageProps {
   content: string;
@@ -172,9 +165,19 @@ const MermaidDiagram: React.FC<{ content: string }> = ({ content }) => {
       if (!elementRef.current || !content) return;
 
       try {
+        // Dynamically load mermaid only when a diagram is actually rendered
+        const mermaidModule = await import('mermaid');
+        const mermaid = mermaidModule.default;
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: 'dark',
+          securityLevel: 'loose',
+          fontFamily: 'monospace',
+        });
+
         // Generate unique ID for this diagram
         const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
-        
+
         // Render the diagram
         const { svg: renderedSvg } = await mermaid.render(id, content.trim());
         setSvg(renderedSvg);

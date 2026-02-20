@@ -1,5 +1,24 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
+// ─── Per-user in-memory rate limiter ────────────────────────────────────────
+// 20 requests per 60-second sliding window per user.
+// Note: Vercel functions are stateless between cold starts, so this limits
+// burst traffic within a single warm instance. Pair with Vercel's built-in
+// IP-level rate limiting for multi-instance protection.
+const RATE_LIMIT_MAX = 20;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const requestLog = new Map<string, number[]>();
+
+function isRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const timestamps = (requestLog.get(userId) ?? []).filter(t => t > windowStart);
+  if (timestamps.length >= RATE_LIMIT_MAX) return true;
+  timestamps.push(now);
+  requestLog.set(userId, timestamps);
+  return false;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -14,6 +33,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userId = req.headers['x-user-id'] as string;
   if (!userId) {
     return res.status(401).json({ error: 'Authentication required.' });
+  }
+
+  // Rate limit: 20 requests per 60 s per user
+  if (isRateLimited(userId)) {
+    res.setHeader('Retry-After', '60');
+    return res.status(429).json({
+      error: 'Too many requests. You can send up to 20 messages per minute.',
+    });
   }
 
   try {
