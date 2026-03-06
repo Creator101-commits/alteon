@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, onAuthStateChanged } from "firebase/auth";
 import { auth, handleAuthRedirect, getUserData, signInWithGoogle, signUpWithEmail, signInWithEmail } from "@/lib/firebase";
 import { supabaseStorage } from "@/lib/supabase-storage";
+import { clearSupabaseToken } from "@/lib/supabase-token";
 import { groqAPI } from "@/lib/groq";
 
 interface AuthContextType {
@@ -222,6 +223,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       clearUserStorage(user.uid);
     }
     
+    clearSupabaseToken();
     await signOutUser();
   };
 

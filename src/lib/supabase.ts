@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getSupabaseToken } from './supabase-token';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -7,10 +8,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env file.');
 }
 
-// Create Supabase client configured for use with Firebase Auth
+// Create Supabase client with custom accessToken for RLS.
+// On every request the client calls getSupabaseToken() which returns
+// a JWT signed with the Supabase secret, containing sub = Firebase UID.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  accessToken: async () => {
+    const token = await getSupabaseToken();
+    return token ?? '';
+  },
   auth: {
-    // Disable Supabase auth since we're using Firebase
     persistSession: false,
     autoRefreshToken: false,
     detectSessionInUrl: false,
