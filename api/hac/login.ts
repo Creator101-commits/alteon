@@ -9,6 +9,20 @@ const hacLoginSchema = z.object({
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // DELETE = logout (merged from /api/hac/logout)
+  if (req.method === 'DELETE') {
+    try {
+      const sessionId = req.headers['x-hac-session'] as string;
+      if (sessionId) {
+        hacScraper.destroySession(sessionId);
+      }
+      return res.json({ success: true, message: 'Logged out successfully' });
+    } catch (error: any) {
+      console.error('HAC logout error:', error);
+      return res.status(500).json({ error: error.message || 'Failed to logout' });
+    }
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

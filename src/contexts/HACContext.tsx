@@ -331,8 +331,8 @@ export const HACProvider = ({ children }: HACProviderProps) => {
 
   const disconnect = useCallback(() => {
     if (sessionId) {
-      fetch(getApiUrl('/api/hac/logout'), {
-        method: 'POST',
+      fetch(getApiUrl('/api/hac/login'), {
+        method: 'DELETE',
         headers: { 'X-HAC-Session': sessionId },
       }).catch(() => {});
     }

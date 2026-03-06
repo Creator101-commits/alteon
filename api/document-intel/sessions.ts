@@ -5,6 +5,9 @@ import { v4 as uuidv4 } from 'uuid';
 // For production, you should use a persistent store
 const sessions = new Map<string, any>();
 
+// Content store (merged from [sessionId]/content.ts)
+const contentStore = new Map<string, { content: string; userId: string; createdAt: Date }>();
+
 export const config = {
   api: {
     bodyParser: {
@@ -74,26 +77,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'GET') {
-    // Get session status
     const sessionId = req.query.sessionId as string;
+    const action = req.query.action as string;
+
+    // GET ?sessionId=X&action=content → return document content (merged from [sessionId]/content)
+    if (sessionId && action === 'content') {
+      const stored = contentStore.get(sessionId);
+
+      if (!stored) {
+        return res.status(200).json({
+          sessionId,
+          status: 'completed',
+          content: 'Document content not available. The document may have been processed in a different session or the content has expired.',
+          extractedText: '',
+        });
+      }
+
+      if (stored.userId !== userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      return res.status(200).json({
+        sessionId,
+        status: 'completed',
+        content: stored.content,
+        extractedText: stored.content,
+      });
+    }
+
+    // GET ?sessionId=X → session status
+    if (sessionId) {
+      const session = sessions.get(sessionId);
+      if (!session || session.userId !== userId) {
+        return res.status(404).json({ message: 'Session not found' });
+      }
+      return res.status(200).json(session);
+    }
+
+    // GET → all sessions for user
+    const userSessions = Array.from(sessions.values())
+      .filter(s => s.userId === userId);
+    return res.status(200).json(userSessions);
+  }
+
+  // PUT ?sessionId=X&action=content → store document content
+  if (req.method === 'PUT') {
+    const sessionId = req.query.sessionId as string;
+    const { content } = req.body;
 
     if (!sessionId) {
-      // Return all sessions for user
-      const userSessions = Array.from(sessions.values())
-        .filter(s => s.userId === userId);
-      return res.status(200).json(userSessions);
+      return res.status(400).json({ message: 'Missing session ID' });
+    }
+    if (!content) {
+      return res.status(400).json({ message: 'Missing content' });
     }
 
-    const session = sessions.get(sessionId);
-    if (!session || session.userId !== userId) {
-      return res.status(404).json({ message: 'Session not found' });
-    }
-
-    return res.status(200).json(session);
+    contentStore.set(sessionId, { content, userId, createdAt: new Date() });
+    return res.status(200).json({ sessionId, status: 'stored', message: 'Content stored successfully' });
   }
 
   if (req.method === 'DELETE') {
-    // Delete session
     const sessionId = req.query.sessionId as string;
 
     if (!sessionId) {
@@ -101,11 +144,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const session = sessions.get(sessionId);
-    if (!session || session.userId !== userId) {
-      return res.status(404).json({ message: 'Session not found' });
+    if (session && session.userId === userId) {
+      sessions.delete(sessionId);
     }
-
-    sessions.delete(sessionId);
+    contentStore.delete(sessionId);
     return res.status(200).json({ message: 'Session deleted' });
   }
 

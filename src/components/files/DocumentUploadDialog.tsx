@@ -141,7 +141,7 @@ export function DocumentUploadDialog({
         });
 
         try {
-          const contentResponse = await fetch(`/api/document-intel/sessions/${jobId}/content`, {
+          const contentResponse = await fetch(`/api/document-intel/sessions?sessionId=${jobId}&action=content`, {
             headers: {
               'x-user-id': user.uid,
             },

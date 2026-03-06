@@ -577,7 +577,7 @@ export function useAiChat() {
     const pollInterval = setInterval(async () => {
       try {
         const response = await fetch(
-          `/api/document-intel/sessions/${jobId}/content`,
+          `/api/document-intel/sessions?sessionId=${jobId}&action=content`,
           { headers: { "x-user-id": user?.uid || "" } }
         );
 
@@ -682,7 +682,7 @@ export function useAiChat() {
 
           try {
             const contentResponse = await fetch(
-              `/api/document-intel/sessions/${jobId}/content`,
+              `/api/document-intel/sessions?sessionId=${jobId}&action=content`,
               { headers: { "x-user-id": user?.uid || "" } }
             );
 
