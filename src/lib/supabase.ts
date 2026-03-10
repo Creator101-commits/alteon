@@ -8,21 +8,28 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env file.');
 }
 
-// Create Supabase client with custom accessToken for RLS.
-// The accessToken callback is called before every request.
-// It returns a Supabase JWT (with sub = Firebase UID) when the user is
-// authenticated, or the anon key when not — so unauthenticated pages
-// still work and RLS kicks in only for authenticated queries.
+// Create Supabase client with a custom fetch that injects the Supabase JWT
+// (signed with sub = Firebase UID) when the user is authenticated.
+// When no custom token is available, the default anon-key Authorization
+// header from supabase-js is left untouched so unauthenticated pages work.
 export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-  accessToken: async () => {
-    try {
-      const token = await getSupabaseToken();
-      if (token) return token;
-    } catch {
-      // Fall through to anon key
-    }
-    // No user or exchange failed — return anon key so requests don't get 401
-    return supabaseAnonKey;
+  global: {
+    fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+      try {
+        const token = await getSupabaseToken();
+        if (token) {
+          const headers = new Headers(init?.headers);
+          headers.set('Authorization', `Bearer ${token}`);
+          return fetch(input, { ...init, headers });
+        }
+      } catch {
+        // Fall through to default fetch with anon key
+      }
+      return fetch(input, init);
+    },
+    headers: {
+      'X-Client-Info': 'alteon-web-app',
+    },
   },
   auth: {
     persistSession: false,
@@ -31,11 +38,6 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
   },
   db: {
     schema: 'public',
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'alteon-web-app',
-    },
   },
 });
 
