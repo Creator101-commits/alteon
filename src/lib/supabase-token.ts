@@ -102,15 +102,10 @@ export async function ensureSupabaseTokenReady(timeoutMs: number = 10_000): Prom
     return cachedToken;
   }
 
-  if (!exchangeInFlight) {
-    void getSupabaseToken();
-  }
+  // Start (or join) token exchange in one synchronous step.
+  const tokenPromise = getSupabaseToken();
 
-  if (!exchangeInFlight) {
-    return cachedToken;
-  }
-
-  return withTimeout(exchangeInFlight, timeoutMs);
+  return withTimeout(tokenPromise, timeoutMs);
 }
 
 /** Clear the cached Supabase token (call on logout). */
