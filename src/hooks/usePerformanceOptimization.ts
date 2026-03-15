@@ -353,8 +353,18 @@ export const usePerformanceOptimization = () => {
 
   // Service Worker registration for caching
   const registerServiceWorker = useCallback(async () => {
+    if (!import.meta.env.PROD) {
+      return;
+    }
+
     if ('serviceWorker' in navigator) {
       try {
+        const swHead = await fetch('/sw.js', { method: 'HEAD', cache: 'no-store' });
+        if (!swHead.ok) {
+          console.warn('Skipping service worker registration: /sw.js not found');
+          return;
+        }
+
         const registration = await navigator.serviceWorker.register('/sw.js');
         
         registration.addEventListener('updatefound', () => {

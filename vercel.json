@@ -43,7 +43,7 @@
       "destination": "/api/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/|@vite/|@react-refresh|__vite_ping|src/|node_modules/|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],

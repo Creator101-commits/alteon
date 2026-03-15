@@ -3,7 +3,6 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRe
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAnalytics } from "firebase/analytics";
-import { storage as supabaseStorage } from "./supabase-storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDmx9WX5GHpG8Gx0xhJpNWJwo6_0fmAOsE",
@@ -82,26 +81,7 @@ export const signInWithGoogle = async (enableSync: boolean = true) => {
         }, { merge: true });
         console.log('User data saved to Firestore');
 
-        // Sync user to Supabase database
-        try {
-          console.log('Syncing user to Supabase database...');
-          const syncedUser = await supabaseStorage.upsertUser({
-            uid: user.uid,
-            email: user.email || '',
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-            accessToken: enableSync ? token : null,
-          });
-
-          if (syncedUser) {
-            console.log(' User synced to Supabase database');
-          } else {
-            console.warn('Failed to sync user to Supabase database');
-          }
-        } catch (dbError) {
-          console.warn('Failed to sync user to Supabase database:', dbError);
-          // Don't fail the login if database sync fails
-        }
+        // Supabase sync is handled centrally in AuthContext after auth bootstrap.
       } catch (firestoreError) {
         console.warn('Failed to save user data to Firestore:', firestoreError);
         // Continue without Firestore - user is still authenticated
@@ -229,25 +209,7 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
         });
         console.log('Email user data saved to Firestore');
 
-        // Sync user to Supabase database
-        try {
-          console.log('Syncing email user to Supabase database...');
-          const syncedUser = await supabaseStorage.upsertUser({
-            uid: user.uid,
-            email: user.email || '',
-            displayName: displayName,
-            photoURL: null,
-            accessToken: null,
-          });
-
-          if (syncedUser) {
-            console.log(' Email user synced to Supabase database');
-          } else {
-            console.warn('Failed to sync email user to Supabase database');
-          }
-        } catch (dbError) {
-          console.warn('Failed to sync email user to Supabase database:', dbError);
-        }
+        // Supabase sync is handled centrally in AuthContext after auth bootstrap.
       } catch (firestoreError) {
         console.warn('Failed to save user data to Firestore:', firestoreError);
       }
@@ -275,25 +237,7 @@ export const signInWithEmail = async (email: string, password: string) => {
         console.warn('Failed to update sign in time:', firestoreError);
       }
 
-      // Sync user to Supabase database on sign in
-      try {
-        console.log('Syncing signed-in user to Supabase database...');
-        const syncedUser = await supabaseStorage.upsertUser({
-          uid: user.uid,
-          email: user.email || '',
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          accessToken: null,
-        });
-
-        if (syncedUser) {
-          console.log(' Signed-in user synced to Supabase database');
-        } else {
-          console.warn('Failed to sync signed-in user to Supabase database');
-        }
-      } catch (dbError) {
-        console.warn('Failed to sync signed-in user to Supabase database:', dbError);
-      }
+      // Supabase sync is handled centrally in AuthContext after auth bootstrap.
     }
 
     return { user };

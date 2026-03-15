@@ -1,6 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { auth } from './firebase';
-import { ensureSupabaseTokenReady, getSupabaseToken } from './supabase-token';
+import { ensureSupabaseTokenReady } from './supabase-token';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -17,28 +16,18 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
   global: {
     fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
       try {
-        const isSignedIn = !!auth.currentUser;
-        const token = isSignedIn
-          ? await ensureSupabaseTokenReady(10_000)
-          : await getSupabaseToken();
-
-        if (token) {
-          const headers = new Headers(init?.headers);
-          headers.set('Authorization', `Bearer ${token}`);
-          return fetch(input, { ...init, headers });
+        const token = await ensureSupabaseTokenReady(10_000);
+        if (!token) {
+          throw new Error('Supabase JWT unavailable');
         }
 
-        if (isSignedIn) {
-          // Abort request instead of sending anonymous credentials while signed in.
-          throw new Error('Supabase JWT unavailable for authenticated request');
-        }
-      } catch {
-        if (auth.currentUser) {
-          throw new Error('Supabase JWT bootstrap failed for authenticated request');
-        }
+        const headers = new Headers(init?.headers);
+        headers.set('Authorization', `Bearer ${token}`);
+        return fetch(input, { ...init, headers });
+      } catch (error) {
+        console.error('Blocked Supabase request without JWT:', error);
+        throw error;
       }
-
-      return fetch(input, init);
     },
     headers: {
       'X-Client-Info': 'alteon-web-app',

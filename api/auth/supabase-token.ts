@@ -30,9 +30,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Missing firebaseToken in request body' });
   }
 
-  const supabaseJwtSecret = process.env.SUPABASE_JWT_SECRET;
+  const supabaseJwtSecret =
+    process.env.SUPABASE_JWT_SECRET ||
+    process.env.SUPABASE_JWT_SIGNING_SECRET ||
+    process.env.JWT_SECRET;
   if (!supabaseJwtSecret) {
-    return res.status(500).json({ error: 'SUPABASE_JWT_SECRET not configured' });
+    return res.status(500).json({
+      error:
+        'SUPABASE_JWT_SECRET not configured (or SUPABASE_JWT_SIGNING_SECRET / JWT_SECRET)',
+    });
   }
 
   try {
@@ -77,6 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const supabaseToken = await new SignJWT({
       sub: firebaseUid,
       role: 'authenticated',
+      aud: 'authenticated',
       iss: 'supabase',
       iat: now,
       exp: now + expiresIn,
