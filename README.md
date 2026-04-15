@@ -1,433 +1,261 @@
-# Alteon
+<h1 align="center">Alteon</h1>
+<p align="center"><strong>AI-powered student productivity for notes, assignments, scheduling, and study workflows in one academic workspace.</strong></p>
 
-Alteon is a comprehensive, AI-powered productivity platform designed specifically for students. It combines intelligent note-taking, calendar management, assignment tracking, and AI assistance to create a unified academic workspace.
+[![License: MIT][license-badge]][license-url]
+[![Frontend: React + Vite][vite-badge]][vite-url]
+[![Database: Supabase PostgreSQL][supabase-badge]][supabase-url]
 
-![Architecture Diagram](images/software_architecture_diagram.png)
+Alteon is an all-in-one student productivity platform for planning, note-taking, assignments, and study workflows.
 
-## System Architecture
+Architecture used:
+- Frontend: React + Vite on Vercel
+- Backend: Vercel serverless API routes under /api/*
+- Data/Auth: Supabase PostgreSQL + Firebase Authentication
+- Integrations: Groq AI and Google Calendar/Classroom APIs
 
-Alteon follows a modern, serverless cloud-native architecture designed for scalability, performance, and reliability. The system leverages Vercel's edge network and Supabase's managed PostgreSQL database for optimal performance.
+Key features:
+- AI-assisted notes with diff-style accept/reject edits
+- Unified calendar + assignment tracking and sync
+- Study tools (flashcards, Pomodoro, analytics)
+- Dashboard workflows for daily planning and progress
 
-### Architecture Overview
+<p align="center">
+	<img src="images/alteon.png" alt="Alteon Dashboard" />
+</p>
 
-The application architecture consists of five main components working together to deliver a seamless user experience:
-
-**1. Front-End Deployment Layer**
-- **Vercel**: Primary hosting platform for the React application, providing global CDN, automatic deployments, and serverless functions
-- **Vercel Edge Functions**: API routes running on Vercel's edge network for low-latency responses
-- **Cloudflare**: Additional security layer offering DDoS protection, web application firewall (WAF), and performance optimization
-
-**2. Front-End Technology Stack**
-- **TypeScript**: Type-safe development ensuring code reliability and maintainability
-- **Vite**: Lightning-fast build tool and development server for optimal developer experience
-- **React**: Component-based UI framework for building interactive user interfaces
-- **Tailwind CSS**: Utility-first CSS framework for rapid, consistent styling
-- **React Query**: Powerful data synchronization and caching for optimal UX
-
-**3. Authentication & External APIs**
-- **Firebase Authentication**: Secure authentication service with Google SSO
-- **Firebase SDK**: Client-side integration for user management
-- **Groq AI API**: Advanced AI capabilities for content summarization, chat assistance, and smart study recommendations
-- **Google API Services**: Integration with Google Calendar, Classroom, and other productivity tools
-
-**4. Serverless Backend (Vercel Functions)**
-- **API Routes**: Serverless functions for HAC scraping, Google Calendar sync, and data operations
-- **Edge Runtime**: Functions running on Vercel's edge network for global low-latency
-- **Direct Database Access**: Supabase client connecting directly from frontend and API routes
-
-**5. Database Layer**
-- **Supabase PostgreSQL**: Managed PostgreSQL database with real-time capabilities, Row Level Security, and automatic backups
-- **Supabase Storage**: Object storage for file uploads and media assets
-- **Drizzle ORM**: Type-safe database toolkit for schema management and migrations
-
-### Data Flow Architecture
-
-The system follows a modern serverless data flow pattern:
-
-1. **User Interaction**: Users interact with the React frontend hosted on Vercel
-2. **Authentication**: Firebase handles user authentication and session management
-3. **API Calls**: Frontend uses relative `/api/*` routes backed by Vercel serverless functions and direct Supabase client calls for trusted operations
-4. **External Services**: Serverless functions integrate with AI services (Groq) and Google APIs
-5. **Data Persistence**: All application data is stored in Supabase PostgreSQL with automatic backups
-6. **Real-time Updates**: React Query provides optimistic updates and automatic cache invalidation
-
-### Infrastructure Benefits
-
-**Scalability**: Serverless architecture auto-scales with user demand, no infrastructure management
-**Performance**: Global edge network and direct database connections ensure fast response times worldwide  
-**Reliability**: Managed services (Vercel + Supabase) provide 99.9% uptime SLA
-**Security**: Row Level Security in Supabase, Cloudflare protection, and Firebase authentication
-**Developer Experience**: Type-safe end-to-end with TypeScript, Drizzle ORM, and modern tooling
-**Cost Efficiency**: Serverless pricing scales from zero, only pay for actual usage
-
-## Features
-
-### Smart Note-Taking
-- **Rich Text Editor**: Google Docs-style editor powered by Tiptap with comprehensive formatting options
-- **AI Writing Assistant**: Minimalistic AI sidebar that helps write, edit, and improve notes
-- **Context-Aware AI**: AI receives note title, content, and category for intelligent suggestions
-- **Coding Agent-Style Editing**: View proposed changes with line count diff (plus/minus lines) before accepting
-- **Accept/Reject Changes**: Review AI edits with preview window before applying to notes
-- **Clean Text Formatting**: Automatic removal of markdown symbols (asterisks, underscores, backticks) when inserting AI content
-- **Text Formatting**: Bold, italic, underline, strikethrough, code, headings, and more
-- **Advanced Features**: Lists (ordered/unordered), blockquotes, tables, and alignment options
-- **Organization**: Categorize notes by type (lecture, homework, study, research, project, exam, general)
-- **Search & Filter**: Powerful search across all notes with category and class filters
-- **Pinning System**: Pin important notes for quick access
-- **Class Integration**: Link notes to specific classes for better organization
-- **Auto-Save**: Continuous auto-saving every 3 seconds with last saved timestamp
-- **Color Customization**: Assign colors to notes for visual organization
-- **Print Support**: Print notes directly from the editor
-
-### AI Chat Assistant
-- **Groq AI Integration**: Powered by llama-3.1-8b-instant and llama-3.1-70b-versatile models
-- **Multi-Purpose Chat**: Ask questions, get explanations, and receive study help
-- **Content Summarization**: Summarize text, PDFs, and YouTube videos
-- **AI Note Assistant**: Integrated directly into note editor for seamless writing help
-- **Quick Actions**: Pre-defined prompts for common tasks (write intro, edit note, expand, outline)
-- **Smart Insert**: Insert AI-generated content directly into notes with proper formatting
-- **Copy Functionality**: Easy copy-to-clipboard for AI responses
-- **Message History**: Keep track of conversation context for better AI responses
-- **Loading States**: Clear visual feedback during AI processing
-
-### Calendar & Scheduling
-- **Unified Calendar**: View all events, assignments, and classes in one place
-- **Google Calendar Sync**: Two-way synchronization with Google Calendar
-- **Auto-Sync**: Automatic background synchronization every 5 minutes
-- **Manual Sync**: On-demand sync with visual feedback
-- **Smart Scheduling**: AI-powered optimal study time suggestions
-- **Event Management**: Create, edit, and manage calendar events with full CRUD operations
-- **Assignment Integration**: Automatic due date tracking linked to calendar
-- **Multiple Views**: Month, week, and day views for flexible planning
-- **Color Coding**: Visual distinction between different event types
-
-### Assignment Management
-- **Assignment Tracking**: Comprehensive tracking of homework, projects, and exams
-- **Priority System**: Mark assignments by priority (low, medium, high)
-- **Status Management**: Track completion status (pending, in-progress, completed, overdue)
-- **Class Integration**: Link assignments to specific classes with color coding
-- **Due Date Alerts**: Never miss important deadlines with visual indicators
-- **Completion Tracking**: Mark assignments as complete and track progress
-- **Filtering**: Filter by status, priority, or class for focused view
-- **Calendar Integration**: Assignments automatically appear on calendar
-
-### Study Tools
-- **Flashcards**: Create and study flashcards with spaced repetition algorithm
-- **Deck Management**: Organize flashcards into decks by subject or topic
-- **Study Modes**: Multiple study modes including shuffle and focused review
-- **Progress Tracking**: Track which cards have been mastered
-- **Pomodoro Timer**: Customizable focus timer with work and break intervals
-- **Session History**: View past Pomodoro sessions and total study time
-- **Mood Tracking**: Monitor emotional well-being with emoji-based mood entries
-- **Mood Analytics**: Visualize mood patterns over time with charts
-- **Daily Journal**: Reflect on learning experiences with daily journal entries
-- **Habit Tracking**: Build and maintain consistent study habits with visual streaks
-
-### Productivity Features
-- **Pomodoro Timer**: 
-  - Customizable work and break durations
-  - Audio notifications for session transitions
-  - Background music support with volume control
-  - Session statistics and total time tracking
-  - Auto-start next session option
-  - Fullscreen focus mode
-- **Light Mode Support**: All components optimized for both light and dark themes
-- **Theme Consistency**: Uniform black text in light mode, white text in dark mode
-- **Responsive Design**: Mobile-friendly interface that adapts to all screen sizes
-- **Offline Capability**: Local storage fallback for basic operations without internet
-
-### Analytics & Insights
-- **Progress Tracking**: Visualize academic progress with charts and graphs
-- **Study Analytics**: Understand study patterns and productivity trends
-- **Productivity Metrics**: Track time spent on different activities and subjects
-- **Performance Insights**: Identify strengths and areas for improvement
-- **Class Performance**: View performance breakdown by class
-- **Time Management**: Analyze how time is distributed across subjects
-
-### User Experience
-- **Modern UI Design**: Clean, minimalistic interface following modern design principles
-- **Glass Morphism**: Beautiful glassmorphic design elements for premium feel
-- **Smooth Animations**: Framer Motion animations for delightful interactions
-- **Loading States**: Skeleton loaders and loading indicators for better UX
-- **Error Handling**: Comprehensive error boundaries and user-friendly error messages
-- **Toast Notifications**: Non-intrusive notifications for user feedback
-- **Empty States**: Helpful empty state designs with clear call-to-actions
-- **Network Status**: Real-time network connectivity indicator
-- **Accessibility**: WCAG-compliant components from Radix UI
-
-## Architecture
-
-### Frontend
-- **React 18** with TypeScript for type-safe component development
-- **Vite** for lightning-fast development and optimized production builds
-- **Tailwind CSS** for utility-first styling with custom design system
-- **Radix UI** for accessible, unstyled component primitives
-- **Framer Motion** for smooth, performant animations and transitions
-- **Wouter** for lightweight client-side routing
-- **Tiptap** for rich text editing in note editor
-- **Recharts** for data visualization and analytics charts
-- **Lucide React** for consistent iconography
-- **date-fns** for date manipulation and formatting
-- **DOMPurify** for sanitizing HTML content
-- **React Hook Form** for efficient form management
-
-### Backend
-- **Vercel Serverless Functions** for API routes under `/api/*`
-- **TypeScript** for type safety
-- **Drizzle ORM** for schema management
-- **Supabase client** for database access
-- **Firebase Authentication** for user identity (via headers)
-
-### Database
-- **Supabase PostgreSQL** as the single source of truth
-- **Supabase Storage** for files/assets
-- **Drizzle migrations** committed in `supabase/migrations/`
-
-### Integrations
-- **Google Calendar API** for two-way calendar synchronization with auto-sync
-- **Google Classroom API** for assignment import and tracking
-- **Microsoft Graph API** for Outlook calendar integration
-- **Groq AI** for intelligent features (llama-3.1-8b-instant, llama-3.1-70b-versatile)
-- **Firebase Authentication** for secure user management with Google SSO
-- **Supabase** for database and storage
-- **YouTube API** for video content summarization
-- **PDF.js** for PDF document processing and summarization
-
-## Quick Start
+## Installation
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 18+
 - npm 8+
 - Git
 
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Creator101-commits/Alteon.git
-   cd Alteon
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Environment Setup**
-   Create `.env` in repo root (see `.env.example`):
-   ```env
-   # Supabase
-   VITE_SUPABASE_URL=https://your-project.supabase.co
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-   DATABASE_URL=postgresql://postgres:[PASSWORD]@db.your-project.supabase.co:5432/postgres
-
-   # Firebase
-   VITE_FIREBASE_API_KEY=your_firebase_api_key
-   VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
-   VITE_FIREBASE_APP_ID=your_firebase_app_id
-
-   # Groq (server-side only — no VITE_ prefix)
-   GROQ_API_KEY=your_groq_api_key
-
-   # Google APIs
-   VITE_GOOGLE_CLIENT_ID=your_google_client_id
-   VITE_GOOGLE_API_KEY=your_google_api_key
-   ```
-
-4. **Start Development Server**
-   ```bash
-   npm run dev
-   # For Vercel-style local testing with API routes
-   # vercel dev (requires Vercel CLI)
-   ```
-
-5. **Access the Application**
-   - Frontend & API: http://localhost:5173 (API served under /api/*)
-
-## Usage
-
-### Getting Started
-1. **Sign Up/Login**: Use Firebase authentication to create your account
-2. **Connect Google Calendar**: Link your Google Calendar for seamless integration
-3. **Create Classes**: Add your courses and subjects
-4. **Start Taking Notes**: Begin organizing your academic content
-5. **Track Assignments**: Add homework and project deadlines
-6. **Use AI Features**: Leverage AI for study help and content summarization
-
-### Key Workflows
-
-#### Note-Taking with AI
-1. Create a new note and select class/category
-2. Start writing with rich text formatting
-3. Click "AI Assistant" to open the minimalistic sidebar
-4. Use quick actions or type custom prompts for help
-5. Review AI suggestions with line count diff view
-6. Accept changes to update your note or reject to keep original
-7. Insert AI content directly into your note with clean formatting
-
-#### Study Session Planning
-1. Check your dashboard for upcoming assignments and events
-2. Review calendar for the day/week with color-coded events
-3. Use AI chat to generate an optimal study plan
-4. Start a Pomodoro session with customized work/break intervals
-5. Take notes during study with AI writing assistance
-6. Track your mood and journal about the session
-7. Review analytics to understand study patterns
-
-#### Assignment Management
-1. Add assignments with due dates, priority, and linked class
-2. View assignments on calendar for timeline visualization
-3. Filter assignments by status, priority, or class
-4. Mark assignments as in-progress or completed
-5. Receive visual alerts for approaching deadlines
-6. Track completion progress across all classes
-
-#### Calendar Synchronization
-1. Connect your Google Calendar in settings
-2. Enable auto-sync for background synchronization every 5 minutes
-3. Create events in Alteon that sync to Google Calendar
-4. Import events from Google Calendar to Alteon
-5. Use manual sync button for immediate synchronization
-6. View sync status with visual indicators
-
-## Development
-
-### Project Structure
+### 1. Clone
+```sh
+git clone https://github.com/Creator101-commits/Alteon.git
+cd Alteon
 ```
+
+### 2. Install dependencies
+```sh
+npm install
+```
+
+### 3. Create environment file
+Create a .env file in the repository root (see .env.example):
+
+```env
+# Supabase
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.your-project.supabase.co:5432/postgres
+
+# Firebase
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
+VITE_FIREBASE_APP_ID=your_firebase_app_id
+
+# Groq (server-side only)
+GROQ_API_KEY=your_groq_api_key
+
+# Google APIs
+VITE_GOOGLE_CLIENT_ID=your_google_client_id
+VITE_GOOGLE_API_KEY=your_google_api_key
+```
+
+### 4. Start development
+```sh
+npm run dev
+```
+
+Optional Vercel-style local API runtime:
+```sh
+vercel dev
+```
+
+## Usage example
+
+### Daily student workflow
+1. Sign in with Firebase authentication.
+2. Connect Google Calendar and import events.
+3. Create classes and assignments with due dates.
+4. Draft notes with the rich editor and AI assistant.
+5. Use dashboard + calendar to plan sessions.
+6. Track progress with analytics and productivity tools.
+
+### AI note workflow
+1. Open a note and write your draft.
+2. Launch AI assistant in the editor.
+3. Ask for editing, expansion, summaries, or structure.
+4. Review proposed diff-style changes.
+5. Accept or reject changes before applying.
+
+For detailed walkthroughs, see [docs/HOW_TO_USE.md](docs/HOW_TO_USE.md).
+
+## Development setup
+
+### Commands
+```sh
+npm run dev      # Start Vite dev server (default port 5173)
+npm run build    # Production build
+npm run start    # Start production server
+npm run check    # Type checking
+npm run db:push  # Push database schema changes
+```
+
+### Project structure
+```text
 Alteon/
 ├── src/                   # React app (components, pages, contexts, hooks)
 ├── api/                   # Vercel serverless API routes (/api/*)
 ├── lib/                   # Shared libraries (HAC scraping, utilities)
 ├── shared/                # Shared schema definitions
-├── supabase/migrations/   # Drizzle SQL migrations for Supabase
+├── supabase/migrations/   # Drizzle SQL migrations
 ├── docs/                  # Documentation
 ├── scripts/               # Tooling scripts
 └── images/, sounds/, etc. # Static assets
 ```
 
-### Available Scripts
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run start` - Start production server
-- `npm run check` - TypeScript type checking
-- `npm run db:push` - Push database schema changes
+### Database setup (Supabase + Drizzle)
+1. Create a Supabase project.
+2. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.
+3. Set DATABASE_URL from Supabase Database Settings.
+4. Run npm run db:push or apply SQL in supabase/migrations/.
 
-### Database Setup
-1. **Supabase (PostgreSQL)**
-   - Create a Supabase project
-   - Copy project `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` into `.env`
-   - Copy `DATABASE_URL` from Supabase (Settings > Database) for Drizzle
-   - Run `npm run db:push` or apply SQL in `supabase/migrations/`
+## System architecture
+
+### Core stack
+- Frontend: React 18, TypeScript, Vite, Tailwind CSS, Wouter
+- UI/UX: Radix UI, Framer Motion, Tiptap, Recharts
+- Backend: Vercel serverless API routes under /api/*
+- Data: Supabase PostgreSQL + Supabase Storage
+- Auth: Firebase Authentication (Google SSO)
+- AI: Groq models for chat, writing help, and summarization
+
+### Data flow
+1. User interacts with React frontend.
+2. Firebase handles authentication and session identity.
+3. Frontend calls /api/* routes and trusted Supabase operations.
+4. Serverless functions connect to Google APIs, HAC services, and AI providers.
+5. Supabase stores notes, assignments, classes, and related entities.
+6. React Query handles caching, optimistic updates, and invalidation.
+
+### Security and reliability
+- Firebase-authenticated user identity per request.
+- Supabase Row Level Security and managed PostgreSQL backups.
+- Serverless deployment for scale and low ops overhead.
+- Cloudflare + Vercel edge network for performance and protection.
+
+## Feature highlights
+
+### Smart note-taking
+- Rich text editor with advanced formatting
+- Context-aware AI writing assistant
+- Diff-style AI edit review (accept/reject)
+- Auto-save and class/category organization
+- Search, filtering, pinning, and print support
+
+### Calendar and assignments
+- Unified calendar view for events and deadlines
+- Google Calendar sync (manual + auto sync)
+- Assignment priority, status, and due-date tracking
+- Calendar-linked assignment timeline
+
+### Study and productivity tools
+- Flashcards with spaced repetition
+- Pomodoro timer with session tracking
+- Mood tracking and journaling
+- Analytics dashboard for patterns and progress
+
+### AI assistance
+- Multi-purpose study chat
+- Summarization for text, PDF, and video workflows
+- Quick prompts for outlining, editing, and expansion
 
 ## Configuration
 
-### Google Calendar Integration
-1. Enable Google Calendar API in Google Cloud Console
-2. Create OAuth 2.0 credentials
-3. Add redirect URIs to authorized origins
-4. Update environment variables
+### Google Calendar integration
+1. Enable Google Calendar API in Google Cloud Console.
+2. Create OAuth 2.0 credentials.
+3. Add authorized redirect URIs.
+4. Update Google environment variables.
 
-### AI Services Setup
-1. **Groq AI**: Sign up for API key
-2. **Firebase**: Create project and enable authentication
-3. **Google APIs**: Enable Classroom and Calendar APIs
+### AI services
+1. Create a Groq API key and set GROQ_API_KEY.
+2. Configure Firebase project credentials.
+3. Enable required Google APIs (Calendar/Classroom as needed).
 
-## API Documentation
+## Release History
 
-The application provides a comprehensive REST API with endpoints for:
-- User management and authentication
-- Notes CRUD operations
-- Assignment tracking
-- Calendar event management
-- AI-powered features
-- Analytics and reporting
+### Recent updates
+- AI Writing Assistant integrated with diff-style accept/reject workflow
+- Cleaner AI text insertion (markdown symbol cleanup)
+- Light mode consistency improvements across major components
+- Google Calendar auto-sync improvements
+- Expanded loading states and error handling
+- Mobile responsiveness and dashboard usability improvements
 
-See [Documentation](docs/HOW_TO_USE.md) for detailed usage information.
+## Meta
+
+- Project: Alteon
+- Repository: https://github.com/Creator101-commits/Alteon
+- License: MIT
+- Main documentation: docs/HOW_TO_USE.md
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Fork the repository.
+2. Create your feature branch (example: feature/amazing-feature).
+3. Commit your changes with a clear message.
+4. Push your branch.
+5. Open a Pull Request.
 
-### Development Guidelines
-- Follow TypeScript best practices
-- Use conventional commit messages
-- Write tests for new features
-- Update documentation as needed
-
-##  License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Development guidelines
+- Follow TypeScript best practices.
+- Keep API input validation strict.
+- Add tests for meaningful logic changes.
+- Update documentation when behavior changes.
 
 ## Support
 
-- **Documentation**: Check the [docs](docs/) folder
-- **Issues**: Report bugs on [GitHub Issues](https://github.com/Creator101-commits/Alteon/issues)
-- **Discord**: Join our community for support
-- **Email**: support@alteon.com
+- Documentation: [docs](docs/)
+- Issues: [GitHub Issues](https://github.com/Creator101-commits/Alteon/issues)
+- Email: support@alteon.com
 
 ## Roadmap
 
-### Completed Features
-- [x] AI Writing Assistant with coding agent-style diff view
-- [x] Context-aware AI suggestions in note editor
-- [x] Markdown symbol removal for clean text formatting
-- [x] Accept/Reject workflow for AI edits
-- [x] Light mode optimization across all components
-- [x] Google Calendar auto-sync with background jobs
-- [x] Minimalistic black-and-white AI design
-- [x] Alteon logo integration throughout app
-- [x] Auto-save functionality for notes
-- [x] Quick action buttons for common AI tasks
-- [x] Real-time network status monitoring
-- [x] Comprehensive error handling
+### Completed
+- AI writing assistant with editable diff workflow
+- Context-aware AI suggestions in notes
+- Google Calendar synchronization
+- Light mode optimization and theme consistency
+- Auto-save improvements and network status feedback
 
-### Upcoming Features
-- [ ] Mobile app (React Native)
-- [ ] Offline support with service workers and local sync
-- [ ] Advanced AI tutoring with personalized learning paths
-- [ ] Collaborative study groups with real-time editing
-- [ ] Integration with Canvas, Moodle, and Blackboard
-- [ ] Advanced analytics dashboard with predictive insights
-- [ ] Custom study plans generated by AI
-- [ ] Voice notes with transcription and AI summarization
-- [ ] Browser extension for quick note capture
-- [ ] OCR support for handwritten notes
-- [ ] Spaced repetition algorithm improvements
-- [ ] AI-powered quiz generation from notes
-- [ ] Multi-language support
-- [ ] Export notes to PDF, Word, and Markdown
-- [ ] Video call integration for study groups
-
-### Recent Updates
-- AI Writing Assistant integrated into note editor with coding agent-style diff view
-- Minimalistic black-and-white design system for AI assistant
-- Markdown symbol removal for clean text insertion
-- Accept/Reject workflow for AI-proposed changes with line count visualization
-- Light mode optimization across all components (Pomodoro, Daily Journal, Mood Tracker)
-- Alteon logo integration throughout application (landing page, navigation, footer, sidebar)
-- Google Calendar auto-sync with background synchronization
-- Enhanced note editor with context-aware AI suggestions
-- Quick action buttons for common AI tasks (write intro, edit, expand, outline)
-- Improved theme consistency with foreground/background color system
-- Auto-save functionality for notes with 3-second intervals
-- Comprehensive error handling and loading states
-- Real-time network status monitoring
-- Mobile-responsive design improvements
+### Upcoming
+- Mobile app (React Native)
+- Offline support with local sync strategy
+- Advanced AI tutoring and study planning
+- Collaborative study features
+- LMS integrations (Canvas, Moodle, Blackboard)
 
 ## Acknowledgments
 
-- Built with [React](https://reactjs.org/)
-- UI components from [Radix UI](https://www.radix-ui.com/)
-- Styling with [Tailwind CSS](https://tailwindcss.com/)
-- Database operations with [Drizzle ORM](https://orm.drizzle.team/)
-- AI integration with [Groq](https://groq.com/)
+- React
+- Radix UI
+- Tailwind CSS
+- Drizzle ORM
+- Supabase
+- Groq
 
 ---
 
-**Alteon** - Empowering students with AI-driven productivity tools. 
+Alteon - Empowering students with AI-driven productivity tools.
 
-
+[license-badge]: https://img.shields.io/badge/license-MIT-green.svg?style=flat-square
+[license-url]: LICENSE
+[vite-badge]: https://img.shields.io/badge/frontend-React%20%2B%20Vite-646CFF.svg?style=flat-square
+[vite-url]: https://vitejs.dev/
+[supabase-badge]: https://img.shields.io/badge/database-Supabase-3ECF8E.svg?style=flat-square
+[supabase-url]: https://supabase.com/
